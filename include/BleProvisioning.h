@@ -5,7 +5,12 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+
+#if __has_include("Secrets.h")
 #include "Secrets.h"
+#else
+#include "Secrets.example.h"
+#endif
 
 namespace ble_prov {
 
@@ -21,7 +26,7 @@ inline void loadCredentials(String& outSsid, String& outPass) {
   outPass = prefs.getString("pass", "");
   prefs.end();
 
-  if (outSsid.isEmpty()) {
+  if (outSsid.isEmpty() && strlen(secrets::kWifiSsid) > 0) {
     outSsid = secrets::kWifiSsid;
     outPass = secrets::kWifiPassword;
   }
@@ -33,6 +38,16 @@ inline void saveCredentials(const String& ssid, const String& pass) {
   prefs.putString("ssid", ssid);
   prefs.putString("pass", pass);
   prefs.end();
+  Serial.printf("[NVS] Wi-Fi credentials persisted for SSID: '%s'\n", ssid.c_str());
+}
+
+inline void clearCredentials() {
+  Preferences prefs;
+  prefs.begin("smartfire", false);
+  prefs.remove("ssid");
+  prefs.remove("pass");
+  prefs.end();
+  Serial.println("[NVS] Stored Wi-Fi credentials cleared");
 }
 
 class Provisioner;
@@ -56,6 +71,17 @@ class ServerCallbacks : public BLEServerCallbacks {
 
 class Provisioner {
  public:
+  Provisioner() {
+    mutex_ = xSemaphoreCreateMutex();
+  }
+
+  ~Provisioner() {
+    if (mutex_) {
+      vSemaphoreDelete(mutex_);
+      mutex_ = nullptr;
+    }
+  }
+
   void begin(const char* deviceName) {
     BLEDevice::init(deviceName);
     server_ = BLEDevice::createServer();
@@ -78,6 +104,9 @@ class Provisioner {
 
     service->start();
 
+    // BLE 4.2 Legacy Advertising layout:
+    // Primary Adv payload is limited to 31 bytes.
+    // Put Device Name in AdvData, and 128-bit Service UUID in ScanResponse to avoid truncation.
     BLEAdvertising* advertising = BLEDevice::getAdvertising();
     advertising->addServiceUUID(kServiceUuid);
     advertising->setScanResponse(true);
@@ -86,8 +115,12 @@ class Provisioner {
 
     BLEAdvertisementData advData;
     advData.setName(deviceName);
-    advData.setCompleteServices(BLEUUID(kServiceUuid));
+
+    BLEAdvertisementData scanResponseData;
+    scanResponseData.setCompleteServices(BLEUUID(kServiceUuid));
+
     advertising->setAdvertisementData(advData);
+    advertising->setScanResponseData(scanResponseData);
 
     BLEDevice::startAdvertising();
 
@@ -104,19 +137,23 @@ class Provisioner {
   }
 
   bool hasPendingUpdate(String& outSsid, String& outPass) {
-    if (pendingUpdate_) {
-      outSsid = pendingSsid_;
-      outPass = pendingPass_;
-      pendingUpdate_ = false;
-      return true;
+    if (!mutex_) return false;
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) == pdTRUE) {
+      bool hasUpdate = pendingUpdate_;
+      if (hasUpdate) {
+        outSsid = pendingSsid_;
+        outPass = pendingPass_;
+        pendingUpdate_ = false;
+      }
+      xSemaphoreGive(mutex_);
+      return hasUpdate;
     }
     return false;
   }
 
   void onConfigReceived(const String& raw) {
-    Serial.printf("[BLE] Received config payload: %s\n", raw.c_str());
     String ssid, pass;
-    // Extract JSON or "SSID\nPASS"
+    // Extract JSON: {"ssid":"...","password":"..."} or {"ssid":"...","pass":"..."}
     int ssidKey = raw.indexOf("\"ssid\"");
     if (ssidKey >= 0) {
       int colon = raw.indexOf(':', ssidKey);
@@ -133,7 +170,7 @@ class Provisioner {
         if (p1 >= 0 && p2 > p1) pass = raw.substring(p1 + 1, p2);
       }
     } else {
-      // Fallback: simple text "SSID\nPASSWORD"
+      // Fallback: simple text format "SSID\nPASSWORD"
       int newline = raw.indexOf('\n');
       if (newline >= 0) {
         ssid = raw.substring(0, newline);
@@ -147,11 +184,13 @@ class Provisioner {
     pass.trim();
 
     if (!ssid.isEmpty()) {
-      Serial.printf("[BLE] Saving new Wi-Fi credentials: SSID='%s'\n", ssid.c_str());
-      saveCredentials(ssid, pass);
-      pendingSsid_ = ssid;
-      pendingPass_ = pass;
-      pendingUpdate_ = true;
+      Serial.printf("[BLE] Config received for SSID: '%s' (password redacted)\n", ssid.c_str());
+      if (mutex_ && xSemaphoreTake(mutex_, pdMS_TO_TICKS(50)) == pdTRUE) {
+        pendingSsid_ = ssid;
+        pendingPass_ = pass;
+        pendingUpdate_ = true;
+        xSemaphoreGive(mutex_);
+      }
       notifyStatus("{\"status\":\"CONNECTING\",\"ssid\":\"" + ssid + "\"}");
     }
   }
@@ -166,10 +205,13 @@ class Provisioner {
     }
   }
 
+  bool isDeviceConnected() const { return deviceConnected_; }
+
  private:
   BLEServer* server_ = nullptr;
   BLECharacteristic* charConfig_ = nullptr;
   BLECharacteristic* charStatus_ = nullptr;
+  SemaphoreHandle_t mutex_ = nullptr;
   bool deviceConnected_ = false;
   bool pendingUpdate_ = false;
   String pendingSsid_;
