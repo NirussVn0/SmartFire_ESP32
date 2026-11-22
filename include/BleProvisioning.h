@@ -84,6 +84,7 @@ class Provisioner {
 
   void begin(const char* deviceName) {
     BLEDevice::init(deviceName);
+    BLEDevice::setMTU(517); // Support higher MTU for fast & reliable JSON configuration exchange
     server_ = BLEDevice::createServer();
     server_->setCallbacks(new ServerCallbacks(this));
 
@@ -104,27 +105,29 @@ class Provisioner {
 
     service->start();
 
-    // BLE 4.2 Legacy Advertising layout:
-    // Primary Adv payload is limited to 31 bytes.
-    // Put Device Name in AdvData, and 128-bit Service UUID in ScanResponse to avoid truncation.
+    // BLE 4.2 Advertising layout:
+    // Place 128-bit Service UUID in primary advertisement data so hardware filters in Android BLE scanner
+    // immediately detect the node without waiting for scan responses.
+    // Place complete device name in ScanResponse to avoid 31-byte advertising frame overflow.
     BLEAdvertising* advertising = BLEDevice::getAdvertising();
     advertising->addServiceUUID(kServiceUuid);
     advertising->setScanResponse(true);
-    advertising->setMinPreferred(0x06);
+    advertising->setMinPreferred(0x06); // Assists iOS/Android connection interval negotiation
     advertising->setMinPreferred(0x12);
 
     BLEAdvertisementData advData;
-    advData.setName(deviceName);
+    advData.setFlags(0x06); // General Discoverable + BR/EDR Not Supported
+    advData.setCompleteServices(BLEUUID(kServiceUuid));
 
     BLEAdvertisementData scanResponseData;
-    scanResponseData.setCompleteServices(BLEUUID(kServiceUuid));
+    scanResponseData.setName(deviceName);
 
     advertising->setAdvertisementData(advData);
     advertising->setScanResponseData(scanResponseData);
 
     BLEDevice::startAdvertising();
 
-    Serial.printf("[BLE] Provisioning server started as '%s'\n", deviceName);
+    Serial.printf("[BLE] Provisioning server started as '%s' with MTU 517\n", deviceName);
   }
 
   void notifyStatus(const String& jsonStatus) {
@@ -229,8 +232,9 @@ inline void ServerCallbacks::onConnect(BLEServer* /*pServer*/) {
   if (parent_) parent_->setConnected(true);
 }
 
-inline void ServerCallbacks::onDisconnect(BLEServer* /*pServer*/) {
+inline void ServerCallbacks::onDisconnect(BLEServer* pServer) {
   if (parent_) parent_->setConnected(false);
+  pServer->startAdvertising();
 }
 
 } // namespace ble_prov

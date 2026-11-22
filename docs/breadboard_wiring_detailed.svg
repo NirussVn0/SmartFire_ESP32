@@ -1,0 +1,267 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" style="background:#0f172a; font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <defs>
+    <!-- Filter for glow effects -->
+    <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <linearGradient id="led-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff4d4d"/>
+      <stop offset="50%" stop-color="#e60000"/>
+      <stop offset="100%" stop-color="#800000"/>
+    </linearGradient>
+    <linearGradient id="resistor-body" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d4b483"/>
+      <stop offset="25%" stop-color="#edd6b1"/>
+      <stop offset="75%" stop-color="#edd6b1"/>
+      <stop offset="100%" stop-color="#c29d66"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Title Header -->
+  <rect x="0" y="0" width="1200" height="80" fill="#1e293b"/>
+  <text x="40" y="45" fill="#38bdf8" font-size="24" font-weight="bold">SƠ ĐỒ ĐẤU DÂY BREADBOARD &amp; ESP32 (38 CHÂN) — CHUẨN XÁC VỊ TRÍ</text>
+  <text x="40" y="68" fill="#94a3b8" font-size="14">Kiểm tra: 8 chân hoạt động, 3 điện trở có mã màu, LED phân cực Anode/Cathode &amp; Cầu nối Mass hàng 3</text>
+
+  <!-- ==================== KHU VỰC ESP32 38 PINS (BÊN TRÁI) ==================== -->
+  <g transform="translate(40, 110)">
+    <!-- Board Body -->
+    <rect x="0" y="0" width="340" height="740" rx="16" fill="#18181b" stroke="#3f3f46" stroke-width="2"/>
+    <rect x="70" y="40" width="200" height="230" rx="8" fill="#27272a" stroke="#52525b"/>
+    <text x="170" y="140" fill="#a1a1aa" font-size="16" font-weight="bold" text-anchor="middle">ESP32-WROOM-32</text>
+    <text x="170" y="165" fill="#71717a" font-size="12" text-anchor="middle">38 PINS DEVKIT</text>
+    
+    <!-- Micro USB Port -->
+    <rect x="120" y="710" width="100" height="30" rx="4" fill="#52525b" stroke="#a1a1aa"/>
+    <text x="170" y="730" fill="#f4f4f5" font-size="11" font-weight="bold" text-anchor="middle">USB / CP2102</text>
+
+    <!-- Header Left & Right Labels -->
+    <text x="45" y="25" fill="#e2e8f0" font-size="13" font-weight="bold">HÀNG TRÁI (L1..L19)</text>
+    <text x="295" y="25" fill="#e2e8f0" font-size="13" font-weight="bold" text-anchor="end">HÀNG PHẢI (R1..R19)</text>
+
+    <!-- Left Pins (L1 to L19) -->
+    <!-- Inactive Left Pins (Grayed out) -->
+    <g font-size="10" font-family="monospace">
+      <!-- L1: 3V3 --> <circle cx="20" cy="50" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="54" fill="#52525b">3V3</text>
+      <!-- L2: EN -->  <circle cx="20" cy="85" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="89" fill="#52525b">EN</text>
+      <!-- L3: VP -->  <circle cx="20" cy="120" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="124" fill="#52525b">VP(36)</text>
+      <!-- L4: VN -->  <circle cx="20" cy="155" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="159" fill="#52525b">VN(39)</text>
+      <!-- L5: G34 --> <circle cx="20" cy="190" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="194" fill="#52525b">G34(L)</text>
+      <!-- L6: G35 --> <circle cx="20" cy="225" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="229" fill="#52525b">G35</text>
+      <!-- L7: G32 --> <circle cx="20" cy="260" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="264" fill="#52525b">G32</text>
+      <!-- L8: G33 --> <circle cx="20" cy="295" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="299" fill="#52525b">G33</text>
+      <!-- L9: G25 --> <circle cx="20" cy="330" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="334" fill="#52525b">G25</text>
+      <!-- L10: G26 --> <circle cx="20" cy="365" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="369" fill="#52525b">G26</text>
+      <!-- L11: G27 --> <circle cx="20" cy="400" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="404" fill="#52525b">G27</text>
+      <!-- L12: G14 --> <circle cx="20" cy="435" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="439" fill="#52525b">G14</text>
+      <!-- L13: GND (Tắt) --> <circle cx="20" cy="470" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="474" fill="#52525b">GND(L13-TẮT)</text>
+      <!-- L14: G13 --> <circle cx="20" cy="505" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="509" fill="#52525b">G13</text>
+      <!-- L15: D2 -->  <circle cx="20" cy="540" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="544" fill="#52525b">D2</text>
+      <!-- L16: D3 -->  <circle cx="20" cy="575" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="579" fill="#52525b">D3</text>
+      <!-- L17: CMD --> <circle cx="20" cy="610" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="614" fill="#52525b">CMD</text>
+      <!-- L18: 5V -->  <circle cx="20" cy="645" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="649" fill="#52525b">5V</text>
+      <!-- L19: GND (Tắt) --> <circle cx="20" cy="680" r="7" fill="#27272a" stroke="#52525b"/><text x="35" y="684" fill="#52525b">GND(L19-TẮT)</text>
+
+      <!-- ACTIVE PIN LÊN TIẾNG: G18 NẰM Ở HÀNG PHẢI HOẶC TRÁI (THEO BOARD USER LÀ G18 CHO NÚT TEST) -->
+      <!-- Điểm nổi bật 1: G18 ACTIVE (Nút Test / Silence) -->
+      <circle cx="20" cy="505" r="9" fill="#eab308" filter="url(#glow-green)"/>
+      <text x="35" y="509" fill="#fde047" font-weight="bold" font-size="12">★ G18 (Nút Silence/Test)</text>
+    </g>
+
+    <!-- Right Pins (R1 to R19) -->
+    <g font-size="10" font-family="monospace">
+      <!-- R1: V5 / VIN (ACTIVE) -->
+      <circle cx="320" cy="50" r="9" fill="#ef4444" filter="url(#glow-red)"/>
+      <text x="305" y="54" fill="#fca5a5" font-weight="bold" font-size="12" text-anchor="end">★ V5 / VIN (Nguồn 5V)</text>
+
+      <!-- R2: G23 (Tắt) --> <circle cx="320" cy="85" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="89" fill="#52525b" text-anchor="end">G23</text>
+      <!-- R3: G22 (Tắt) --> <circle cx="320" cy="120" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="124" fill="#52525b" text-anchor="end">G22(TẮT)</text>
+      <!-- R4: TX -->       <circle cx="320" cy="155" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="159" fill="#52525b" text-anchor="end">TX0</text>
+      <!-- R5: RX -->       <circle cx="320" cy="190" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="194" fill="#52525b" text-anchor="end">RX0</text>
+      
+      <!-- R6: GND (ACTIVE) -->
+      <circle cx="320" cy="225" r="9" fill="#3b82f6" filter="url(#glow-green)"/>
+      <text x="305" y="229" fill="#93c5fd" font-weight="bold" font-size="12" text-anchor="end">★ GND (R6 - Mass Chung)</text>
+
+      <!-- R7: G21 (Tắt) --> <circle cx="320" cy="260" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="264" fill="#52525b" text-anchor="end">G21(TẮT)</text>
+      <!-- R8: G19 -->      <circle cx="320" cy="295" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="299" fill="#52525b" text-anchor="end">G19</text>
+      <!-- R9: G18 -->      <circle cx="320" cy="330" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="334" fill="#52525b" text-anchor="end">G18</text>
+      <!-- R10: G5 -->      <circle cx="320" cy="365" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="369" fill="#52525b" text-anchor="end">G5</text>
+      <!-- R11: G17 -->     <circle cx="320" cy="400" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="404" fill="#52525b" text-anchor="end">G17</text>
+      <!-- R12: G16 -->     <circle cx="320" cy="435" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="439" fill="#52525b" text-anchor="end">G16</text>
+      <!-- R13: G4 -->      <circle cx="320" cy="470" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="474" fill="#52525b" text-anchor="end">G4</text>
+
+      <!-- R14: G27 (ACTIVE) -->
+      <circle cx="320" cy="505" r="9" fill="#10b981" filter="url(#glow-green)"/>
+      <text x="305" y="509" fill="#6ee7b7" font-weight="bold" font-size="12" text-anchor="end">★ G27 (Flame DO)</text>
+
+      <!-- R15: G26 (ACTIVE) -->
+      <circle cx="320" cy="540" r="9" fill="#f97316" filter="url(#glow-green)"/>
+      <text x="305" y="544" fill="#fdba74" font-weight="bold" font-size="12" text-anchor="end">★ G26 (Còi / D4184)</text>
+
+      <!-- R16: G25 (ACTIVE) -->
+      <circle cx="320" cy="575" r="9" fill="#a855f7" filter="url(#glow-green)"/>
+      <text x="305" y="579" fill="#d8b4fe" font-weight="bold" font-size="12" text-anchor="end">★ G25 (Status LED)</text>
+
+      <!-- R17: G34 (ACTIVE) -->
+      <circle cx="320" cy="610" r="9" fill="#06b6d4" filter="url(#glow-green)"/>
+      <text x="305" y="614" fill="#67e8f9" font-weight="bold" font-size="12" text-anchor="end">★ G34 (MQ-2 ADC)</text>
+
+      <!-- R18: G35 -->     <circle cx="320" cy="645" r="7" fill="#27272a" stroke="#52525b"/><text x="305" y="649" fill="#52525b" text-anchor="end">G35</text>
+
+      <!-- R19: 3V3 (ACTIVE) -->
+      <circle cx="320" cy="680" r="9" fill="#ec4899" filter="url(#glow-green)"/>
+      <text x="305" y="684" fill="#f472b6" font-weight="bold" font-size="12" text-anchor="end">★ 3V3 (Nguồn Flame)</text>
+    </g>
+  </g>
+
+  <!-- ==================== KHU VỰC BREADBOARD THỰC TẾ (BÊN PHẢI) ==================== -->
+  <g transform="translate(480, 110)">
+    <!-- Breadboard Outer Frame -->
+    <rect x="0" y="0" width="680" height="740" rx="16" fill="#f8fafc" stroke="#cbd5e1" stroke-width="4"/>
+    <text x="340" y="35" fill="#334155" font-size="18" font-weight="bold" text-anchor="middle">MA TRẬN LỖ CẮM BREADBOARD (HÀNG 1 ĐẾN HÀNG 10)</text>
+
+    <!-- Column Labels A B C D E | F G H I J -->
+    <g fill="#64748b" font-size="13" font-weight="bold" text-anchor="middle">
+      <text x="60" y="70">A</text><text x="100" y="70">B</text><text x="140" y="70">C</text><text x="180" y="70">D</text><text x="220" y="70">E</text>
+      <!-- Center Ravine -->
+      <rect x="255" y="80" width="30" height="630" fill="#cbd5e1" rx="4"/>
+      <text x="270" y="380" fill="#64748b" font-size="11" transform="rotate(-90 270 380)" text-anchor="middle">RÃNH CÁCH ĐIỆN Ở GIỮA</text>
+      <text x="320" y="70">F</text><text x="360" y="70">G</text><text x="400" y="70">H</text><text x="440" y="70">I</text><text x="480" y="70">J</text>
+    </g>
+
+    <!-- Draw Breadboard Holes for Rows 1 to 10 -->
+    <!-- Hole Grid generator visually -->
+    <g fill="#94a3b8">
+      <!-- Rows 1 to 10 -->
+      <!-- Row 1 -->  <text x="25" y="105" font-size="12" fill="#64748b">1</text>
+      <circle cx="60" cy="100" r="4"/><circle cx="100" cy="100" r="4"/><circle cx="140" cy="100" r="4"/><circle cx="180" cy="100" r="4"/><circle cx="220" cy="100" r="4"/>
+      <circle cx="320" cy="100" r="4"/><circle cx="360" cy="100" r="4"/><circle cx="400" cy="100" r="4"/><circle cx="440" cy="100" r="4"/><circle cx="480" cy="100" r="4"/>
+
+      <!-- Row 2 -->  <text x="25" y="155" font-size="12" fill="#64748b">2</text>
+      <circle cx="60" cy="150" r="4"/><circle cx="100" cy="150" r="4"/><circle cx="140" cy="150" r="4"/><circle cx="180" cy="150" r="4"/><circle cx="220" cy="150" r="4"/>
+      <circle cx="320" cy="150" r="4"/><circle cx="360" cy="150" r="4"/><circle cx="400" cy="150" r="4"/><circle cx="440" cy="150" r="4"/><circle cx="480" cy="150" r="4"/>
+
+      <!-- Row 3 (TRỤC MASS GND CHUNG) -->
+      <rect x="40" y="185" width="200" height="30" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-dasharray="3,3"/>
+      <rect x="300" y="185" width="200" height="30" rx="6" fill="#dbeafe" stroke="#93c5fd" stroke-dasharray="3,3"/>
+      <text x="25" y="205" font-size="12" font-weight="bold" fill="#1d4ed8">3</text>
+      <circle cx="60" cy="200" r="4"/><circle cx="100" cy="200" r="4"/><circle cx="140" cy="200" r="5" fill="#2563eb"/><circle cx="180" cy="200" r="4"/><circle cx="220" cy="200" r="5" fill="#2563eb"/>
+      <circle cx="320" cy="200" r="5" fill="#2563eb"/><circle cx="360" cy="200" r="4"/><circle cx="400" cy="200" r="5" fill="#2563eb"/><circle cx="440" cy="200" r="4"/><circle cx="480" cy="200" r="4"/>
+      <text x="510" y="205" fill="#2563eb" font-size="12" font-weight="bold">← TRỤC MASS GND (HÀNG 3)</text>
+
+      <!-- Row 4 -->  <text x="25" y="255" font-size="12" fill="#64748b">4</text>
+      <circle cx="60" cy="250" r="4"/><circle cx="100" cy="250" r="4"/><circle cx="140" cy="250" r="4"/><circle cx="180" cy="250" r="4"/><circle cx="220" cy="250" r="4"/>
+      <circle cx="320" cy="250" r="4"/><circle cx="360" cy="250" r="4"/><circle cx="400" cy="250" r="4"/><circle cx="440" cy="250" r="4"/><circle cx="480" cy="250" r="4"/>
+
+      <!-- Row 5 -->  <text x="25" y="305" font-size="12" fill="#64748b">5</text>
+      <circle cx="60" cy="300" r="4"/><circle cx="100" cy="300" r="4"/><circle cx="140" cy="300" r="4"/><circle cx="180" cy="300" r="4"/><circle cx="220" cy="300" r="4"/>
+      <circle cx="320" cy="300" r="4"/><circle cx="360" cy="300" r="4"/><circle cx="400" cy="300" r="4"/><circle cx="440" cy="300" r="4"/><circle cx="480" cy="300" r="4"/>
+
+      <!-- Row 6 -->  <text x="25" y="355" font-size="12" fill="#64748b">6</text>
+      <circle cx="60" cy="350" r="5" fill="#0284c7"/><circle cx="100" cy="350" r="5" fill="#d97706"/><circle cx="140" cy="350" r="4"/><circle cx="180" cy="350" r="4"/><circle cx="220" cy="350" r="4"/>
+      <circle cx="320" cy="350" r="5" fill="#a855f7"/><circle cx="360" cy="350" r="5" fill="#ea580c"/><circle cx="400" cy="350" r="4"/><circle cx="440" cy="350" r="4"/><circle cx="480" cy="350" r="4"/>
+
+      <!-- Row 7 -->  <text x="25" y="405" font-size="12" font-weight="bold" fill="#0284c7">7</text>
+      <circle cx="60" cy="400" r="4"/><circle cx="100" cy="400" r="5" fill="#d97706"/><circle cx="140" cy="400" r="5" fill="#0284c7"/><circle cx="180" cy="400" r="5" fill="#06b6d4"/><circle cx="220" cy="400" r="4"/>
+      <circle cx="320" cy="400" r="4"/><circle cx="360" cy="400" r="5" fill="#ea580c"/><circle cx="400" cy="400" r="5" fill="#dc2626"/><circle cx="440" cy="400" r="4"/><circle cx="480" cy="400" r="4"/>
+      <text x="510" y="405" fill="#0284c7" font-size="12" font-weight="bold">← ĐIỂM GIỮA CHIA ÁP (BÊN TRÁI) &amp; ANODE LED (BÊN PHẢI)</text>
+
+      <!-- Row 8 -->  <text x="25" y="455" font-size="12" fill="#64748b">8</text>
+      <circle cx="60" cy="450" r="4"/><circle cx="100" cy="450" r="4"/><circle cx="140" cy="450" r="4"/><circle cx="180" cy="450" r="4"/><circle cx="220" cy="450" r="4"/>
+      <circle cx="320" cy="450" r="4"/><circle cx="360" cy="450" r="4"/><circle cx="400" cy="450" r="4"/><circle cx="440" cy="450" r="4"/><circle cx="480" cy="450" r="4"/>
+    </g>
+
+    <!-- ================= NỐI DÂY CẦU NỐI MASS HÀNG 3 (BẮT BUỘC) ================= -->
+    <path d="M 220 200 C 250 170, 290 170, 320 200" fill="none" stroke="#2563eb" stroke-width="4"/>
+    <text x="270" y="165" fill="#1d4ed8" font-size="10" font-weight="bold" text-anchor="middle">CẦU NỐI GND (E3 → F3)</text>
+
+    <!-- Dây nối Mass từ H3 về GND R6 ESP32 -->
+    <path d="M 140 200 C 80 200, -80 200, -160 335" fill="none" stroke="#2563eb" stroke-width="3" stroke-dasharray="4,3"/>
+    <text x="60" y="180" fill="#1d4ed8" font-size="11" font-weight="bold">Về chân GND ESP32</text>
+
+    <!-- ================= ĐIỆN TRỞ R1 = 10kΩ (B6 -> B7) ================= -->
+    <g>
+      <!-- Wire leads -->
+      <line x1="100" y1="350" x2="100" y2="400" stroke="#71717a" stroke-width="3"/>
+      <!-- Body -->
+      <rect x="91" y="362" width="18" height="26" rx="4" fill="url(#resistor-body)" stroke="#a16207" stroke-width="1.5"/>
+      <!-- Bands: Nâu (Brown), Đen (Black), Cam (Orange), Nhũ vàng (Gold) -->
+      <rect x="91" y="366" width="18" height="3" fill="#78350f"/> <!-- Brown -->
+      <rect x="91" y="371" width="18" height="3" fill="#000000"/> <!-- Black -->
+      <rect x="91" y="376" width="18" height="3" fill="#ea580c"/> <!-- Orange -->
+      <rect x="91" y="382" width="18" height="2" fill="#ca8a04"/> <!-- Gold -->
+      <text x="80" y="378" fill="#b45309" font-size="11" font-weight="bold" text-anchor="end">R1 (10kΩ)</text>
+    </g>
+
+    <!-- ================= ĐIỆN TRỞ R2 = 10kΩ (C7 -> C3) ================= -->
+    <g>
+      <!-- Wire leads thẳng hàng dọc C7 -> C3 -->
+      <line x1="140" y1="200" x2="140" y2="400" stroke="#71717a" stroke-width="3"/>
+      <!-- Body centered around y=300 -->
+      <rect x="131" y="280" width="18" height="40" rx="4" fill="url(#resistor-body)" stroke="#a16207" stroke-width="1.5"/>
+      <!-- Bands: Nâu, Đen, Cam -->
+      <rect x="131" y="287" width="18" height="4" fill="#78350f"/> <!-- Brown -->
+      <rect x="131" y="295" width="18" height="4" fill="#000000"/> <!-- Black -->
+      <rect x="131" y="303" width="18" height="4" fill="#ea580c"/> <!-- Orange -->
+      <rect x="131" y="312" width="18" height="3" fill="#ca8a04"/> <!-- Gold -->
+      <text x="125" y="305" fill="#b45309" font-size="11" font-weight="bold" text-anchor="end">R2 (10kΩ thẳng hàng C7→C3)</text>
+    </g>
+
+    <!-- Dây tín hiệu MQ-2 AO cắm vào hàng 6 (A6) -->
+    <path d="M -50 350 L 60 350" fill="none" stroke="#f59e0b" stroke-width="3.5"/>
+    <circle cx="60" cy="350" r="6" fill="#f59e0b"/>
+    <text x="50" y="340" fill="#d97706" font-size="11" font-weight="bold" text-anchor="end">MQ-2 AO (Vào A6)</text>
+
+    <!-- Dây tín hiệu GPIO34 đọc từ Hàng 7 (D7) -->
+    <path d="M 180 400 C 180 480, -60 480, -160 720" fill="none" stroke="#06b6d4" stroke-width="3.5"/>
+    <circle cx="180" cy="400" r="6" fill="#06b6d4"/>
+    <text x="195" y="420" fill="#0891b2" font-size="11" font-weight="bold">Đến GPIO34 ESP32 (Lấy từ D7)</text>
+
+    <!-- ================= ĐIỆN TRỞ R3 = 330Ω (G6 -> G7) ================= -->
+    <g>
+      <!-- Wire leads -->
+      <line x1="360" y1="350" x2="360" y2="400" stroke="#71717a" stroke-width="3"/>
+      <!-- Body -->
+      <rect x="351" y="362" width="18" height="26" rx="4" fill="url(#resistor-body)" stroke="#a16207" stroke-width="1.5"/>
+      <!-- Bands: Cam (Orange), Cam (Orange), Nâu (Brown), Vàng (Gold) -->
+      <rect x="351" y="366" width="18" height="3" fill="#ea580c"/> <!-- Orange -->
+      <rect x="351" y="371" width="18" height="3" fill="#ea580c"/> <!-- Orange -->
+      <rect x="351" y="376" width="18" height="3" fill="#78350f"/> <!-- Brown -->
+      <rect x="351" y="382" width="18" height="2" fill="#ca8a04"/> <!-- Gold -->
+      <text x="345" y="378" fill="#ea580c" font-size="11" font-weight="bold" text-anchor="end">R3 (330Ω)</text>
+    </g>
+
+    <!-- Dây tín hiệu GPIO25 vào F6 -->
+    <path d="M -160 685 C -80 600, 280 600, 320 350" fill="none" stroke="#a855f7" stroke-width="3.5"/>
+    <circle cx="320" cy="350" r="6" fill="#a855f7"/>
+    <text x="315" y="340" fill="#9333ea" font-size="11" font-weight="bold" text-anchor="end">Từ GPIO25 ESP32 (Vào F6)</text>
+
+    <!-- ================= ĐÈN LED ĐỎ PHÂN CỰC ANODE / CATHODE ================= -->
+    <g>
+      <!-- Chân Anode (+) dài cắm vào H7 -->
+      <path d="M 400 400 L 400 320" stroke="#e11d48" stroke-width="3"/>
+      <!-- Chân Cathode (-) ngắn cắm thẳng vào H3 -->
+      <path d="M 400 200 L 400 270" stroke="#3b82f6" stroke-width="3"/>
+      
+      <!-- LED Lens / Head -->
+      <circle cx="400" cy="295" r="14" fill="url(#led-grad)" filter="url(#glow-red)" stroke="#fda4af" stroke-width="1.5"/>
+      
+      <!-- Pin Labels -->
+      <text x="425" y="405" fill="#e11d48" font-size="11" font-weight="bold">Chân Dài Anode (+) tại H7 (nối R3 G7)</text>
+      <text x="425" y="205" fill="#2563eb" font-size="11" font-weight="bold">Chân Ngắn Cathode (−) tại H3 (GND Hàng 3)</text>
+    </g>
+
+    <!-- Instructions Summary Box -->
+    <rect x="40" y="520" width="600" height="190" rx="10" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="60" y="550" fill="#0f172a" font-size="15" font-weight="bold">BẢNG TỔNG HỢP KIỂM TRA MẠCH:</text>
+    <text x="60" y="580" fill="#334155" font-size="13">✓ Cầu phân áp MQ-2: AO vào B6 → R1 (10kΩ) → B7 nối thông C7 (Lấy dây ra GPIO34) → R2 (10kΩ) → C3 (GND).</text>
+    <text x="60" y="610" fill="#334155" font-size="13">✓ Cụm Đèn LED: GPIO25 vào F6 → R3 (330Ω) → G7 nối thông Anode (+) H7 → LED → Cathode (−) H3 (GND).</text>
+    <text x="60" y="640" fill="#b91c1c" font-size="13" font-weight="bold">⚠ LƯU Ý SỐNG CÒN: Rãnh giữa Breadboard không tự thông! Phải cắm dây cầu Mass (E3 → F3) để H3 có GND!</text>
+    <text x="60" y="670" fill="#0369a1" font-size="13">✓ Các chân còn lại: G27 (Flame), G26 (MOSFET Còi), G18 (Nút bấm sang GND), V5 (5V MQ-2), 3V3 (Flame VCC).</text>
+  </g>
+</svg>

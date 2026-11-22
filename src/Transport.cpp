@@ -102,6 +102,10 @@ const char kSetupHtml[] PROGMEM = R"rawhtml(
 void networkTask(void* arg) {
   auto& bus = *static_cast<Bus*>(arg);
 
+  // Initialize WiFi stack & LwIP tcpip_mbox before any socket or netif operations
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_STA);
+
   // Derive unique device suffix from MAC address for SoftAP & BLE
   uint8_t mac[6];
   WiFi.macAddress(mac);

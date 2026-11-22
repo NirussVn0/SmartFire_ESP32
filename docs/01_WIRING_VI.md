@@ -4,6 +4,20 @@
 GPIO34 là nhãn tín hiệu trên board, không phải chân thứ 34. Đọc chữ in trên đúng board, không dựa vào vị trí của ảnh board khác.
 
 ![Sơ đồ tổng quan đấu dây](wiring_overview.png)
+![Sơ đồ chi tiết Breadboard 38 chân](breadboard_wiring_detailed.svg)
+
+## 1.1. Bản đồ lỗ cắm Breadboard thực tế (Chuẩn hóa vị trí & linh kiện)
+
+| Linh kiện | Chân / Cực tính | Vị trí cắm trên Breadboard | Chức năng & Ghi chú |
+|---|---|---|---|
+| **Điện trở R1 (10kΩ)** | Nâu–Đen–Cam–Vàng | Cắm dọc từ **B6 → B7** | Cầu phân áp nhánh trên (nhận AO tại hàng 6) |
+| **Điện trở R2 (10kΩ)** | Nâu–Đen–Cam–Vàng | Cắm dọc thẳng hàng từ **C7 → C3** | Cầu phân áp nhánh dưới (nối đất tại Hàng 3 Mass GND) |
+| **Dây tín hiệu GPIO34** | Dây nhảy (Jumper) | Cắm từ **D7** về **G34 ESP32** | Lấy điện áp tại điểm giữa cầu phân áp (Hàng 7) |
+| **Điện trở R3 (330Ω)** | Cam–Cam–Nâu–Vàng | Cắm dọc từ **G6 → G7** | Hạn dòng cho LED (nhận tín hiệu GPIO25 tại hàng 6 bên phải) |
+| **Đèn LED Đỏ** | Chân dài Anode (+) | Cắm vào lỗ **H7** | Nối thông ngang với chân điện trở R3 ở G7 |
+| **Đèn LED Đỏ** | Chân ngắn Cathode (−) | Cắm thẳng vào lỗ **H3** | Nối thông vào trục Mass GND hàng 3 bên phải |
+| **Cầu nối Mass (GND)** | Dây nhảy (Jumper) | Cắm từ **E3 → F3** | **BẮT BUỘC:** Nối thông Mass giữa 2 nửa Breadboard qua rãnh giữa |
+| **Dây Mass về ESP32** | Dây nhảy (Jumper) | Cắm từ **C3 (hoặc H3)** về **GND R6 ESP32** | Khép kín mạch nối đất toàn hệ thống |
 
 ## 1. Phần cứng đang giả định
 
