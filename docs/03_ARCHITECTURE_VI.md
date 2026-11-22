@@ -9,7 +9,7 @@ Quyết định cảnh báo cục bộ độc lập với cách truyền dữ li
 |---|---|---|
 | AlarmCore | Phân tích Inputs + thời gian; state machine, ACK, Silence, Test | Không đọc GPIO, không HTTP, không gọi AI |
 | Hardware | Đọc ADC/digital, debounce nút, điều khiển LED/còi | Không quyết định bản đồ/phòng |
-| Transport | Wi-Fi STA, HTTP token, snapshot/events, queue lệnh | Không ghi GPIO còi, không sửa trực tiếp state của core |
+| Transport | Wi-Fi STA state machine, SoftAP Captive Portal, BLE Provisioning (GATT), Flash NVS, HTTP token, snapshot/events, queue lệnh | Không ghi GPIO còi, không sửa trực tiếp state của core |
 | main.cpp | Điều phối sample → update → command → output → publish | Không trộn xử lý HTTP vào loop |
 
 `AlarmCore` là C++ thuần nên chạy được host test trên máy tính. Không thêm interface/abstract factory khi chưa có nhu cầu; tách trách nhiệm bằng file/module trước. Thay HTTP bằng MQTT sau này chỉ cần đổi Transport/contract, giữ nguyên policy.
@@ -17,7 +17,7 @@ Quyết định cảnh báo cục bộ độc lập với cách truyền dữ li
 ## 2. Luồng chạy
 
 - Arduino loop trên core 1 của ESP32 classic: mỗi 50ms lấy mẫu, cập nhật policy, xử lý nút và tối đa 4 lệnh đã xếp hàng, điều khiển output.
-- Network task trên core 0, priority 1: reconnect Wi-Fi theo khoảng 15 giây, HTTP, Serial. Không có vòng `while chưa kết nối Wi-Fi` trong setup.
+- Network task trên core 0, priority 1: vận hành máy trạng thái Wi-Fi (`Booting` -> `LoadCredentials` -> `ConnectingSta` -> `StaConnected` / `ProvisioningMode`). Tích hợp BLE Provisioning Server (quảng bá GATT Service `4fafc201-1fb5-459e-8fcc-c5c9c331914b`) và SoftAP Web Portal (`SmartFire-Setup-XXXX` tại `192.168.4.1`) cho phép cấu hình Wi-Fi linh hoạt. Reconnect Wi-Fi theo chu kỳ 15 giây, xử lý HTTP Server và Serial. Không có vòng `while chưa kết nối Wi-Fi` trong setup để đảm bảo loop cảm biến chạy không bao giờ bị nghẽn.
 - Network gửi lệnh qua FreeRTOS queue tối đa 8 phần tử; queue đầy trả 503. Lệnh chờ quá 2 giây bị từ chối. Request có thể đến giữa vòng đọc; tuổi lệnh dùng thời điểm xử lý mới để tránh lỗi unsigned underflow.
 - Loop là nơi duy nhất sửa AlarmCore. Nó publish snapshot + 32 event vào bus có mutex. Loop dùng try-lock (không chờ); task HTTP sao chép dữ liệu rồi thả khóa trước khi serialize/gửi mạng.
 - HTTP chậm vẫn có thể làm mất khả năng truy cập API/Serial tạm thời; local sensing không đợi HTTP. Đây là thiết kế cô lập độ trễ, chưa phải chứng minh real-time deadline trên hardware.
@@ -79,7 +79,7 @@ AI không có quyền im còi hoặc ghi đè local hazard rule. Nếu sau này 
 2. App LAN + SQLite, status/events, freshness, ACK/Silence và logging.
 3. Map và QR, nhiều node, danh mục bình chữa cháy.
 4. BME280/nhiệt phù hợp: thêm Inputs, policy, host test, thực nghiệm fusion; không chỉ gắn sensor rồi gọi là AI.
-5. Provisioning + NVS có schema version; không hardcode Wi-Fi khi chuẩn bị chia sẻ thiết bị.
+5. [ĐÃ HOÀN THIỆN TRÊN v1.0.1] Provisioning qua BLE GATT + SoftAP Web Portal + Lưu trữ NVS Flash (Preferences namespace "smartfire"); không cần hardcode Wi-Fi trong Secrets.h khi nạp trên nhiều node.
 6. Nếu cần truy cập xa: transport bảo mật, danh tính thiết bị, authorization, offline queue có giới hạn và bảo vệ flash wear.
 7. Nguồn dự phòng/giám sát nguồn, watchdog, storage recovery và fault injection. OTA chỉ sau khi có xác thực và rollback phù hợp; không bật OTA không mật khẩu.
 

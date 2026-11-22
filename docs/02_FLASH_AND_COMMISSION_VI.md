@@ -25,7 +25,7 @@ constexpr char kDeviceId[] = "smartfire-node-01";
 constexpr char kRoomId[] = "room-101";
 ```
 
-Tạo token riêng bằng Python: `python -c "import secrets; print(secrets.token_hex(24))"`. Không dùng nguyên chuỗi minh họa. Nếu để trống SSID hoặc token dưới 24 ký tự, firmware tắt mạng, vẫn đọc cảm biến và xuất Serial qua task nền. Wi-Fi 2,4GHz; điện thoại phải truy cập được cùng LAN, tránh guest isolation. Chưa có captive portal, BLE provisioning hay SoftAP.
+Tạo token riêng bằng Python: `python -c "import secrets; print(secrets.token_hex(24))"`. Không dùng nguyên chuỗi minh họa. Nếu để trống SSID hoặc token dưới 24 ký tự, firmware sẽ kích hoạt chế độ **Provisioning Mode** (phát BLE Service `4fafc201-1fb5-459e-8fcc-c5c9c331914b` và SoftAP `SmartFire-Setup-XXXX` tại `192.168.4.1` để người dùng cài Wi-Fi qua ứng dụng SmartFire AI hoặc trình duyệt Web). Wi-Fi hỗ trợ băng tần 2,4GHz; điện thoại và ESP32 cần ở trong cùng lớp mạng LAN, tránh bật tính năng AP Isolation (cách ly thiết bị khách).
 
 Trong `Config.h`, lần đầu giữ:
 

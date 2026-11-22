@@ -6,7 +6,7 @@ Base URL: `http://<IP_ESP32>` in trong Serial, port 80. Mọi route hợp lệ c
 Authorization: Bearer TOKEN_RIENG_CUA_NODE
 ```
 
-Token riêng >=24 ký tự. Không gửi token qua query string. HTTP chưa mã hóa: chỉ dùng mạng thử nghiệm/LAN tin cậy; không port-forward ra Internet. Token có thể bị đọc trên đường truyền bởi tác nhân có khả năng quan sát mạng. Không có TLS, account roles, CORS browser, rate-limit cứng hoặc provisioning trong v0.1; app native/CLI là client mục tiêu. Không nhúng token thật vào repo công khai.
+Token riêng >=24 ký tự. Không gửi token qua query string. HTTP chưa mã hóa: chỉ dùng mạng thử nghiệm/LAN tin cậy; không port-forward ra Internet. Token có thể bị đọc trên đường truyền bởi tác nhân có khả năng quan sát mạng. Cấu hình mạng Wi-Fi được thực hiện linh hoạt qua BLE GATT hoặc SoftAP Web Portal (`/configure`); app Android native SmartFire AI hoặc CLI là client mục tiêu. Không nhúng token thật vào repo công khai.
 
 ## Trạng thái
 
@@ -32,7 +32,8 @@ Token riêng >=24 ký tự. Không gửi token qua query string. HTTP chưa mã 
     "testing": false,
     "horn_requested": false,
     "horn_enabled": false,
-    "gas_commissioned": false
+    "gas_commissioned": false,
+    "temperature_celsius": null
   }
 }
 ```
