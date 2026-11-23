@@ -6,12 +6,23 @@
 #include "Transport.h"
 
 namespace {
-smartfire::Policy policy() {
+smartfire::Policy policy(const RuntimeConfig& cfg) {
   smartfire::Policy p;
-  p.gas_on = config::kGasOn; p.gas_off = config::kGasOff;
+  p.gas_warn = cfg.gasWarn;
+  p.gas_on = cfg.gasOn;
+  p.gas_off = cfg.gasOff;
+  p.mq2_enabled = cfg.mq2Enabled;
+  p.flame_enabled = cfg.flameEnabled;
+  p.temp_enabled = cfg.tempEnabled;
+  p.temp_warn_c = cfg.tempWarnC;
+  p.temp_alarm_c = cfg.tempAlarmC;
+  p.flame_warn_ms = cfg.flameWarnMs;
+  p.flame_hold_ms = cfg.flameAlarmMs;
   return p;
 }
-smartfire::AlarmCore core(policy());
+RuntimeConfig activeCfg;
+uint32_t appliedConfigRev = 0;
+smartfire::AlarmCore core(policy(activeCfg));
 Hardware hardware;
 Bus bus;
 Published pending;
@@ -19,9 +30,10 @@ Snapshot lastEvent;
 bool haveEvent = false, transportReady = false;
 uint32_t sampledAt = 0, publishedAt = 0;
 Snapshot makeSnapshot(const smartfire::Inputs& in, uint32_t now) {
-  return {now, in.gas_raw, core.state(hardware.warming(now), config::kGasCommissioned),
+  return {now, in.gas_raw, core.state(hardware.warming(now), activeCfg.gasCommissioned),
           in.flame, in.gas_ready, in.gas_fault, core.alarm(), core.muted(),
-          core.acknowledged(), core.testing(), core.hornRequested()};
+          core.acknowledged(), core.testing(), core.hornRequested(),
+          activeCfg.hornEnabled, activeCfg.gasCommissioned, activeCfg.gasOn, activeCfg.gasOff};
 }
 bool changed(const Snapshot& a, const Snapshot& b) {
   return a.state != b.state || a.alarm != b.alarm || a.muted != b.muted ||
@@ -51,7 +63,7 @@ void loop() {
   const uint32_t now = millis();
   if (smartfire::elapsed(now, sampledAt) < config::kSampleMs) { delay(1); return; }
   sampledAt = now;
-  const auto in = hardware.sample(now);
+  const auto in = hardware.sample(now, activeCfg.gasCommissioned);
   core.update(in, now);
   smartfire::Command buttonCommand;
   if (hardware.button(now, buttonCommand)) {
@@ -70,7 +82,7 @@ void loop() {
            stale ? "expired" : result == smartfire::Result::Applied ? "applied" : "rejected");
   }
   const Snapshot current = makeSnapshot(in, now);
-  hardware.output(core, current.state, now);
+  hardware.output(core, current.state, now, activeCfg.hornEnabled);
   if (!haveEvent || changed(current, lastEvent)) {
     record(current, "state"); lastEvent = current; haveEvent = true;
   }
@@ -78,6 +90,11 @@ void loop() {
   // Try-lock only: HTTP may delay telemetry but cannot hold up the local alarm loop.
   if (transportReady && smartfire::elapsed(now, publishedAt) >= config::kPublishMs &&
       xSemaphoreTake(bus.mutex, 0) == pdTRUE) {
+    if (bus.runtimeConfig.revision != appliedConfigRev) {
+      activeCfg = bus.runtimeConfig;
+      appliedConfigRev = activeCfg.revision;
+      core.setPolicy(policy(activeCfg));
+    }
     bus.published = pending;
     xSemaphoreGive(bus.mutex);
     publishedAt = now;

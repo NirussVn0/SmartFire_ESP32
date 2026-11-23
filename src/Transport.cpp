@@ -4,6 +4,9 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
+#include <Preferences.h>
+#include <Update.h>
+#include <cmath>
 
 #if __has_include("Secrets.h")
 #include "Secrets.h"
@@ -44,8 +47,121 @@ String quote(const char* text) {
 
 const char* boolean(bool b) { return b ? "true" : "false"; }
 
-String statusJson(const Snapshot& s) {
-  String out; out.reserve(650);
+RuntimeConfig loadRuntimeConfigFromNvs() {
+  RuntimeConfig cfg;
+  Preferences prefs;
+  if (prefs.begin("sf_cfg", true)) {
+    const uint16_t gasWarn = prefs.getUShort("gas_warn", config::kGasWarn);
+    const uint16_t gasOn = prefs.getUShort("gas_on", config::kGasOn);
+    const uint16_t gasOff = prefs.getUShort("gas_off", config::kGasOff);
+    if (gasOff < gasOn && gasWarn < gasOn && gasOn < 4090 && gasOff >= 200 && gasWarn >= 500) {
+      cfg.gasWarn = gasWarn;
+      cfg.gasOn = gasOn;
+      cfg.gasOff = gasOff;
+    }
+    cfg.mq2Enabled = prefs.getBool("mq2_en", config::kMq2Enabled);
+    cfg.flameEnabled = prefs.getBool("flm_en", config::kFlameEnabled);
+    cfg.tempEnabled = prefs.getBool("tmp_en", config::kTempEnabled);
+    const float tw = prefs.getFloat("tmp_w", config::kTempWarnC);
+    const float ta = prefs.getFloat("tmp_a", config::kTempAlarmC);
+    if (std::isfinite(tw) && std::isfinite(ta) && tw >= 25.0f && ta <= 120.0f && tw < ta) {
+      cfg.tempWarnC = tw;
+      cfg.tempAlarmC = ta;
+    }
+    const uint32_t fw = prefs.getUInt("flm_wms", config::kFlameWarnMs);
+    const uint32_t fa = prefs.getUInt("flm_ams", config::kFlameAlarmMs);
+    if (fw <= 3000 && fa >= 100 && fa <= 5000 && fw <= fa) {
+      cfg.flameWarnMs = fw;
+      cfg.flameAlarmMs = fa;
+    }
+    cfg.hornEnabled = prefs.getBool("horn_en", config::kHornEnabled);
+    cfg.gasCommissioned = prefs.getBool("gas_comm", config::kGasCommissioned);
+    const int8_t txPwr = static_cast<int8_t>(prefs.getChar("tx_pwr", config::kDefaultTxPower1m));
+    if (txPwr >= -75 && txPwr <= -20) cfg.txPower1m = txPwr;
+    const float n = prefs.getFloat("pl_n", config::kDefaultPathLossN);
+    if (std::isfinite(n) && n >= 1.5f && n <= 4.5f) cfg.pathLossN = n;
+    prefs.end();
+  }
+  cfg.revision = 1;
+  return cfg;
+}
+
+void saveRuntimeConfigToNvs(const RuntimeConfig& cfg) {
+  Preferences prefs;
+  if (prefs.begin("sf_cfg", false)) {
+    prefs.putUShort("gas_warn", cfg.gasWarn);
+    prefs.putUShort("gas_on", cfg.gasOn);
+    prefs.putUShort("gas_off", cfg.gasOff);
+    prefs.putBool("mq2_en", cfg.mq2Enabled);
+    prefs.putBool("flm_en", cfg.flameEnabled);
+    prefs.putBool("tmp_en", cfg.tempEnabled);
+    prefs.putFloat("tmp_w", cfg.tempWarnC);
+    prefs.putFloat("tmp_a", cfg.tempAlarmC);
+    prefs.putUInt("flm_wms", cfg.flameWarnMs);
+    prefs.putUInt("flm_ams", cfg.flameAlarmMs);
+    prefs.putBool("horn_en", cfg.hornEnabled);
+    prefs.putBool("gas_comm", cfg.gasCommissioned);
+    prefs.putChar("tx_pwr", cfg.txPower1m);
+    prefs.putFloat("pl_n", cfg.pathLossN);
+    prefs.end();
+  }
+}
+
+bool extractJsonNumber(const String& body, const char* key, double& outVal) {
+  const String needle = String("\"") + key + "\"";
+  int idx = body.indexOf(needle);
+  if (idx < 0) return false;
+  idx = body.indexOf(':', idx + needle.length());
+  if (idx < 0) return false;
+  ++idx;
+  while (idx < static_cast<int>(body.length()) && (body[idx] == ' ' || body[idx] == '\t')) ++idx;
+  if (idx >= static_cast<int>(body.length())) return false;
+  char* endPtr = nullptr;
+  const char* startPtr = body.c_str() + idx;
+  const double parsed = strtod(startPtr, &endPtr);
+  if (endPtr == startPtr || !std::isfinite(parsed)) return false;
+  outVal = parsed;
+  return true;
+}
+
+bool extractJsonBool(const String& body, const char* key, bool& outVal) {
+  const String needle = String("\"") + key + "\"";
+  int idx = body.indexOf(needle);
+  if (idx < 0) return false;
+  idx = body.indexOf(':', idx + needle.length());
+  if (idx < 0) return false;
+  ++idx;
+  while (idx < static_cast<int>(body.length()) && (body[idx] == ' ' || body[idx] == '\t')) ++idx;
+  if (body.startsWith("true", idx)) { outVal = true; return true; }
+  if (body.startsWith("false", idx)) { outVal = false; return true; }
+  return false;
+}
+
+String configJson(const RuntimeConfig& cfg) {
+  String out;
+  out.reserve(420);
+  out = "{\"gas_warn\":" + String(cfg.gasWarn);
+  out += ",\"gas_on\":" + String(cfg.gasOn);
+  out += ",\"gas_off\":" + String(cfg.gasOff);
+  out += ",\"mq2_enabled\":" + String(boolean(cfg.mq2Enabled));
+  out += ",\"flame_enabled\":" + String(boolean(cfg.flameEnabled));
+  out += ",\"temp_enabled\":" + String(boolean(cfg.tempEnabled));
+  out += ",\"temp_warn_c\":" + String(cfg.tempWarnC, 1);
+  out += ",\"temp_alarm_c\":" + String(cfg.tempAlarmC, 1);
+  out += ",\"flame_warn_ms\":" + String(cfg.flameWarnMs);
+  out += ",\"flame_alarm_ms\":" + String(cfg.flameAlarmMs);
+  out += ",\"horn_enabled\":" + String(boolean(cfg.hornEnabled));
+  out += ",\"gas_commissioned\":" + String(boolean(cfg.gasCommissioned));
+  out += ",\"tx_power_1m\":" + String(static_cast<int>(cfg.txPower1m));
+  out += ",\"path_loss_n\":" + String(cfg.pathLossN, 2);
+  out += ",\"firmware_version\":" + quote(config::kFirmwareVersion);
+  out += ",\"revision\":" + String(cfg.revision);
+  return out + '}';
+}
+
+String statusJson(const Snapshot& s, int wifiRssiSmoothed, int wifiRssiRaw,
+                  uint32_t wifiReconnects, const RuntimeConfig& cfg) {
+  String out; out.reserve(1150);
   out = "{\"uptime_ms\":" + String(s.uptimeMs);
   out += ",\"state\":" + quote(smartfire::stateName(s.state));
   out += ",\"gas_raw\":" + String(s.gasRaw);
@@ -57,8 +173,24 @@ String statusJson(const Snapshot& s) {
   out += ",\"acknowledged\":" + String(boolean(s.acknowledged));
   out += ",\"testing\":" + String(boolean(s.testing));
   out += ",\"horn_requested\":" + String(boolean(s.hornRequested));
-  out += ",\"horn_enabled\":" + String(boolean(config::kHornEnabled));
-  out += ",\"gas_commissioned\":" + String(boolean(config::kGasCommissioned));
+  out += ",\"horn_enabled\":" + String(boolean(s.hornEnabled));
+  out += ",\"gas_commissioned\":" + String(boolean(s.gasCommissioned));
+  out += ",\"wifi_rssi\":" + String(wifiRssiSmoothed);
+  out += ",\"wifi_rssi_raw\":" + String(wifiRssiRaw);
+  out += ",\"wifi_reconnects\":" + String(wifiReconnects);
+  out += ",\"gas_warn\":" + String(cfg.gasWarn);
+  out += ",\"gas_on\":" + String(cfg.gasOn);
+  out += ",\"gas_off\":" + String(cfg.gasOff);
+  out += ",\"mq2_enabled\":" + String(boolean(cfg.mq2Enabled));
+  out += ",\"flame_enabled\":" + String(boolean(cfg.flameEnabled));
+  out += ",\"temp_enabled\":" + String(boolean(cfg.tempEnabled));
+  out += ",\"temp_warn_c\":" + String(cfg.tempWarnC, 1);
+  out += ",\"temp_alarm_c\":" + String(cfg.tempAlarmC, 1);
+  out += ",\"flame_warn_ms\":" + String(cfg.flameWarnMs);
+  out += ",\"flame_alarm_ms\":" + String(cfg.flameAlarmMs);
+  out += ",\"tx_power_1m\":" + String(static_cast<int>(cfg.txPower1m));
+  out += ",\"path_loss_n\":" + String(cfg.pathLossN, 2);
+  out += ",\"firmware_version\":" + quote(config::kFirmwareVersion);
   // No fake temperature: null since no dedicated ambient temperature sensor is calibrated
   out += ",\"temperature_celsius\":null";
   return out + '}';
@@ -102,9 +234,19 @@ const char kSetupHtml[] PROGMEM = R"rawhtml(
 void networkTask(void* arg) {
   auto& bus = *static_cast<Bus*>(arg);
 
+  // Load persisted runtime sensor/RSSI calibration config from NVS and publish to sensing core
+  RuntimeConfig liveCfg = loadRuntimeConfigFromNvs();
+  if (xSemaphoreTake(bus.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+    bus.runtimeConfig = liveCfg;
+    xSemaphoreGive(bus.mutex);
+  }
+
   // Initialize WiFi stack & LwIP tcpip_mbox before any socket or netif operations
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
+  // Disable Wi-Fi modem sleep to prevent 100-400ms latency spikes & HTTP polling drops
+  WiFi.setSleep(false);
+  WiFi.setTxPower(WIFI_POWER_19_5dBm);
 
   // Derive unique device suffix from MAC address for SoftAP & BLE
   uint8_t mac[6];
@@ -129,8 +271,19 @@ void networkTask(void* arg) {
   uint32_t stateEnteredAt = millis();
   uint32_t lastStaAttempt = 0;
   uint32_t logAt = millis();
+  uint32_t rssiSampleAt = 0;
   uint32_t requestId = 0;
+  uint32_t wifiReconnects = 0;
+  int wifiRssiRaw = -60;
+  float wifiRssiFiltered = -60.0f;
+  bool hasRssiSample = false;
   bool apActive = false;
+  bool otaAuthorized = false;
+  bool otaStarted = false;
+  bool otaFailed = false;
+  size_t otaBytesWritten = 0;
+  String otaError;
+  uint32_t pendingRebootAt = 0;
 
   auto transition = [&](WifiState next) {
     state = next;
@@ -185,8 +338,9 @@ void networkTask(void* arg) {
   // Normal Status & Events Endpoints
   server.on("/v1/status", HTTP_GET, [&]() {
     if (!authorized() || !snapshot()) return;
+    const int smoothedRssi = static_cast<int>(lroundf(wifiRssiFiltered));
     server.send(200, "application/json", envelope() + ",\"latest_seq\":" + String(local.latestSeq) +
-      ",\"status\":" + statusJson(local.status) + '}');
+      ",\"status\":" + statusJson(local.status, smoothedRssi, wifiRssiRaw, wifiReconnects, liveCfg) + '}');
   });
 
   server.on("/v1/events", HTTP_GET, [&]() {
@@ -199,6 +353,7 @@ void networkTask(void* arg) {
       }
     }
     const uint32_t since = static_cast<uint32_t>(parsed);
+    const int smoothedRssi = static_cast<int>(lroundf(wifiRssiFiltered));
     String out = envelope() + ",\"latest_seq\":" + String(local.latestSeq) + ",\"oldest_seq\":" +
       String(local.count ? local.events[0].seq : 0) + ",\"events\":[";
     bool comma = false;
@@ -209,10 +364,224 @@ void networkTask(void* arg) {
       comma = true;
       out += "{\"seq\":" + String(e.seq) + ",\"kind\":" + quote(e.kind) +
         ",\"request_id\":" + String(e.requestId) + ",\"result\":" + quote(e.result) +
-        ",\"status\":" + statusJson(e.snapshot) + '}';
+        ",\"status\":" + statusJson(e.snapshot, smoothedRssi, wifiRssiRaw, wifiReconnects, liveCfg) + '}';
     }
     server.send(200, "application/json", out + "]}");
   });
+
+  // Remote Runtime Configuration Endpoints (Save + Push from Android App over Wi-Fi)
+  server.on("/v1/config", HTTP_GET, [&]() {
+    if (!authorized()) return;
+    server.send(200, "application/json", configJson(liveCfg));
+  });
+
+  server.on("/v1/config", HTTP_POST, [&]() {
+    if (!authorized()) return;
+    const String body = server.arg("plain");
+    RuntimeConfig next = liveCfg;
+    double numVal = 0.0;
+    bool boolVal = false;
+
+    if (extractJsonNumber(body, "gas_warn", numVal)) {
+      const int v = static_cast<int>(lround(numVal));
+      if (v < 500 || v > 3800) {
+        server.send(400, "application/json", "{\"error\":\"invalid_gas_warn\"}"); return;
+      }
+      next.gasWarn = static_cast<uint16_t>(v);
+    }
+    if (extractJsonNumber(body, "gas_on", numVal)) {
+      const int v = static_cast<int>(lround(numVal));
+      if (v < 600 || v > 4000) {
+        server.send(400, "application/json", "{\"error\":\"invalid_gas_on\"}"); return;
+      }
+      next.gasOn = static_cast<uint16_t>(v);
+    }
+    if (extractJsonNumber(body, "gas_off", numVal)) {
+      const int v = static_cast<int>(lround(numVal));
+      if (v < 200 || v > 3900) {
+        server.send(400, "application/json", "{\"error\":\"invalid_gas_off\"}"); return;
+      }
+      next.gasOff = static_cast<uint16_t>(v);
+    }
+    if (next.gasWarn >= next.gasOn) {
+      next.gasWarn = (next.gasOn > 450) ? static_cast<uint16_t>(next.gasOn - 250) : static_cast<uint16_t>(next.gasOn / 2);
+    }
+    if (next.gasOff >= next.gasWarn) {
+      next.gasOff = (next.gasWarn > 350) ? static_cast<uint16_t>(next.gasWarn - 200) : static_cast<uint16_t>(next.gasWarn / 2);
+    }
+    if (next.gasOff >= next.gasOn) {
+      // Auto-maintain safe hysteresis gap if caller only updated gas_on
+      next.gasOff = (next.gasOn > 400) ? static_cast<uint16_t>(next.gasOn - 300) : static_cast<uint16_t>(next.gasOn / 2);
+    }
+    if (extractJsonBool(body, "mq2_enabled", boolVal)) {
+      next.mq2Enabled = boolVal;
+    }
+    if (extractJsonBool(body, "flame_enabled", boolVal)) {
+      next.flameEnabled = boolVal;
+    }
+    if (extractJsonBool(body, "temp_enabled", boolVal)) {
+      next.tempEnabled = boolVal;
+    }
+    if (extractJsonNumber(body, "temp_warn_c", numVal)) {
+      if (numVal < 25.0 || numVal > 95.0) {
+        server.send(400, "application/json", "{\"error\":\"invalid_temp_warn_c\"}"); return;
+      }
+      next.tempWarnC = static_cast<float>(numVal);
+    }
+    if (extractJsonNumber(body, "temp_alarm_c", numVal)) {
+      if (numVal < 35.0 || numVal > 120.0) {
+        server.send(400, "application/json", "{\"error\":\"invalid_temp_alarm_c\"}"); return;
+      }
+      next.tempAlarmC = static_cast<float>(numVal);
+    }
+    if (next.tempWarnC >= next.tempAlarmC) {
+      next.tempWarnC = (next.tempAlarmC >= 30.0f) ? (next.tempAlarmC - 5.0f) : 25.0f;
+      if (next.tempWarnC >= next.tempAlarmC) {
+        server.send(400, "application/json", "{\"error\":\"temp_warn_must_be_below_alarm\"}"); return;
+      }
+    }
+    if (extractJsonNumber(body, "flame_warn_ms", numVal)) {
+      const long v = lround(numVal);
+      if (v < 0 || v > 3000) {
+        server.send(400, "application/json", "{\"error\":\"invalid_flame_warn_ms\"}"); return;
+      }
+      next.flameWarnMs = static_cast<uint32_t>(v);
+    }
+    if (extractJsonNumber(body, "flame_alarm_ms", numVal)) {
+      const long v = lround(numVal);
+      if (v < 100 || v > 5000) {
+        server.send(400, "application/json", "{\"error\":\"invalid_flame_alarm_ms\"}"); return;
+      }
+      next.flameAlarmMs = static_cast<uint32_t>(v);
+    }
+    if (next.flameWarnMs > next.flameAlarmMs) {
+      next.flameWarnMs = next.flameAlarmMs;
+    }
+    if (extractJsonBool(body, "horn_enabled", boolVal)) {
+      next.hornEnabled = boolVal;
+    }
+    if (extractJsonBool(body, "gas_commissioned", boolVal)) {
+      next.gasCommissioned = boolVal;
+    }
+    if (extractJsonNumber(body, "tx_power_1m", numVal)) {
+      const int v = static_cast<int>(lround(numVal));
+      if (v < -75 || v > -20) {
+        server.send(400, "application/json", "{\"error\":\"invalid_tx_power_1m\"}"); return;
+      }
+      next.txPower1m = static_cast<int8_t>(v);
+    }
+    if (extractJsonNumber(body, "path_loss_n", numVal)) {
+      if (numVal < 1.5 || numVal > 4.5) {
+        server.send(400, "application/json", "{\"error\":\"invalid_path_loss_n\"}"); return;
+      }
+      next.pathLossN = static_cast<float>(numVal);
+    }
+
+    next.revision = liveCfg.revision + 1;
+    saveRuntimeConfigToNvs(next);
+    if (xSemaphoreTake(bus.mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+      bus.runtimeConfig = next;
+      xSemaphoreGive(bus.mutex);
+    }
+    liveCfg = next;
+    Serial.printf("[CONFIG] Updated over Wi-Fi: mq2=%d(%u/%u/%u) temp=%d(%.1f/%.1f) flame=%d(%lu/%lu) horn=%d comm=%d tx=%d n=%.2f\n",
+                  liveCfg.mq2Enabled ? 1 : 0, liveCfg.gasOff, liveCfg.gasWarn, liveCfg.gasOn,
+                  liveCfg.tempEnabled ? 1 : 0, liveCfg.tempWarnC, liveCfg.tempAlarmC,
+                  liveCfg.flameEnabled ? 1 : 0, static_cast<unsigned long>(liveCfg.flameWarnMs), static_cast<unsigned long>(liveCfg.flameAlarmMs),
+                  liveCfg.hornEnabled ? 1 : 0, liveCfg.gasCommissioned ? 1 : 0,
+                  static_cast<int>(liveCfg.txPower1m), liveCfg.pathLossN);
+    server.send(200, "application/json", String("{\"applied\":true,\"config\":") + configJson(liveCfg) + '}');
+  });
+
+  // Wi-Fi OTA Firmware Update Endpoint (Push .bin from Android App)
+  server.on(
+      "/v1/ota",
+      HTTP_POST,
+      [&]() {
+        const bool headerAuth = (strlen(secrets::kApiToken) >= 24 &&
+                                 server.header("Authorization") == String("Bearer ") + secrets::kApiToken);
+        const bool isAuth = otaStarted ? otaAuthorized : headerAuth;
+        const bool started = otaStarted;
+        const bool failed = otaFailed;
+        const size_t bytesWritten = otaBytesWritten;
+        const String errCopy = otaError;
+
+        // Always reset per-request OTA state so stale flags never leak into subsequent requests
+        otaAuthorized = false;
+        otaStarted = false;
+        otaFailed = false;
+        otaBytesWritten = 0;
+        otaError = "";
+
+        if (!isAuth) {
+          server.send(401, "application/json", "{\"error\":\"unauthorized\"}");
+          return;
+        }
+        if (!started || bytesWritten == 0) {
+          server.send(400, "application/json", "{\"ota\":\"failed\",\"error\":\"empty_firmware_upload\"}");
+          return;
+        }
+        if (failed || Update.hasError()) {
+          server.send(500, "application/json",
+                      String("{\"ota\":\"failed\",\"error\":") + quote(errCopy.c_str()) + '}');
+          return;
+        }
+        server.sendHeader("Connection", "close");
+        server.send(200, "application/json",
+                    String("{\"ota\":\"ok\",\"rebooting\":true,\"bytes\":") + String(static_cast<unsigned>(bytesWritten)) +
+                        ",\"previous_version\":" + quote(config::kFirmwareVersion) + '}');
+        pendingRebootAt = millis() + 800;
+      },
+      [&]() {
+        HTTPUpload& upload = server.upload();
+        if (upload.status == UPLOAD_FILE_START) {
+          otaStarted = true;
+          otaFailed = false;
+          otaBytesWritten = 0;
+          otaError = "";
+          otaAuthorized = (strlen(secrets::kApiToken) >= 24 &&
+                           server.header("Authorization") == String("Bearer ") + secrets::kApiToken);
+          if (!otaAuthorized) {
+            otaFailed = true;
+            otaError = "unauthorized";
+            return;
+          }
+          Serial.printf("[OTA] Start firmware update: %s\n", upload.filename.c_str());
+          if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+            otaFailed = true;
+            otaError = Update.errorString();
+            Serial.printf("[OTA] begin failed: %s\n", otaError.c_str());
+          }
+        } else if (upload.status == UPLOAD_FILE_WRITE) {
+          if (otaAuthorized && !otaFailed) {
+            if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+              otaFailed = true;
+              otaError = Update.errorString();
+              Serial.printf("[OTA] write failed: %s\n", otaError.c_str());
+            } else {
+              otaBytesWritten += upload.currentSize;
+            }
+          }
+        } else if (upload.status == UPLOAD_FILE_END) {
+          if (otaAuthorized && !otaFailed) {
+            if (otaBytesWritten == 0) {
+              Update.abort();
+              otaFailed = true;
+              otaError = "empty_firmware_upload";
+            } else if (Update.end(true)) {
+              Serial.printf("[OTA] Success: %u bytes flashed\n", static_cast<unsigned>(upload.totalSize));
+            } else {
+              otaFailed = true;
+              otaError = Update.errorString();
+              Serial.printf("[OTA] end failed: %s\n", otaError.c_str());
+            }
+          }
+        } else if (upload.status == UPLOAD_FILE_ABORTED) {
+          Update.abort();
+          otaFailed = true;
+          otaError = "aborted";
+        }
+      });
 
   auto enqueue = [&](smartfire::Command cmd) {
     if (!authorized()) return;
@@ -305,6 +674,8 @@ void networkTask(void* arg) {
         if (!activeSsid.isEmpty()) {
           Serial.printf("[WIFI] Found configured SSID: '%s'. Attempting connection...\n", activeSsid.c_str());
           WiFi.mode(WIFI_STA);
+          WiFi.setSleep(false);
+          WiFi.setTxPower(WIFI_POWER_19_5dBm);
           WiFi.setAutoReconnect(true);
           WiFi.begin(activeSsid.c_str(), activePass.c_str());
           lastStaAttempt = now;
@@ -324,14 +695,17 @@ void networkTask(void* arg) {
           WiFi.disconnect(true);
           vTaskDelay(pdMS_TO_TICKS(100));
           WiFi.mode(apActive ? WIFI_AP_STA : WIFI_STA);
+          WiFi.setSleep(false);
+          WiFi.setTxPower(WIFI_POWER_19_5dBm);
           WiFi.begin(activeSsid.c_str(), activePass.c_str());
           lastStaAttempt = now;
           Serial.printf("[WIFI] Connecting to newly provided SSID: '%s'...\n", activeSsid.c_str());
         }
 
         if (WiFi.status() == WL_CONNECTED) {
+          WiFi.setSleep(false);
           String ipStr = WiFi.localIP().toString();
-          Serial.printf("[WIFI] Connected successfully! IP: %s\n", ipStr.c_str());
+          Serial.printf("[WIFI] Connected successfully! IP: %s RSSI: %d dBm\n", ipStr.c_str(), WiFi.RSSI());
           // Save verified working credentials to NVS
           ble_prov::saveCredentials(activeSsid, activePass);
 
@@ -360,8 +734,12 @@ void networkTask(void* arg) {
 
       case WifiState::StaConnected: {
         if (WiFi.status() != WL_CONNECTED) {
-          Serial.println("[WIFI] Lost connection to router. Entering recovery/reconnect...");
+          ++wifiReconnects;
+          Serial.printf("[WIFI] Lost connection to router (#%lu). Reconnecting...\n",
+                        static_cast<unsigned long>(wifiReconnects));
           bleProv.notifyStatus("{\"status\":\"DISCONNECTED\"}");
+          WiFi.reconnect();
+          lastStaAttempt = now;
           transition(WifiState::ConnectingSta);
           break;
         }
@@ -381,20 +759,48 @@ void networkTask(void* arg) {
           break;
         }
 
-        // Periodic background retry to last known good SSID if available (every 30s)
-        if (!activeSsid.isEmpty() && smartfire::elapsed(now, lastStaAttempt) >= 30000) {
+        // Continuously check if a prior background retry succeeded!
+        if (WiFi.status() == WL_CONNECTED) {
+          Serial.println("[WIFI] Background STA reconnect succeeded!");
+          transition(WifiState::ConnectingSta);
+          break;
+        }
+
+        // Periodic background retry to last known good SSID if available (every 20s)
+        if (!activeSsid.isEmpty() && smartfire::elapsed(now, lastStaAttempt) >= 20000) {
           lastStaAttempt = now;
           Serial.printf("[WIFI] Background retry to '%s'...\n", activeSsid.c_str());
           WiFi.begin(activeSsid.c_str(), activePass.c_str());
-          if (WiFi.status() == WL_CONNECTED) {
-            transition(WifiState::StaConnected);
-          }
         }
         break;
       }
     }
 
+    // Smooth Wi-Fi RSSI every 250ms (EMA + spike clamp) for accurate indoor/outdoor distance estimation
+    if (WiFi.status() == WL_CONNECTED && smartfire::elapsed(now, rssiSampleAt) >= 250) {
+      rssiSampleAt = now;
+      const int raw = WiFi.RSSI();
+      if (raw < 0 && raw >= -100) {
+        wifiRssiRaw = raw;
+        if (!hasRssiSample) {
+          wifiRssiFiltered = static_cast<float>(raw);
+          hasRssiSample = true;
+        } else {
+          // Suppress sudden multipath spikes > 14 dBm in a single 250ms step
+          const float delta = static_cast<float>(raw) - wifiRssiFiltered;
+          const float clampedDelta = (delta > 14.0f) ? 14.0f : (delta < -14.0f ? -14.0f : delta);
+          wifiRssiFiltered += 0.25f * clampedDelta;
+        }
+      }
+    }
+
     server.handleClient();
+
+    if (pendingRebootAt != 0 && static_cast<int32_t>(now - pendingRebootAt) >= 0) {
+      Serial.println("[OTA] Rebooting into new firmware...");
+      delay(50);
+      ESP.restart();
+    }
 
     // Periodic telemetry log to serial (redacting sensitive data)
     if (smartfire::elapsed(now, logAt) >= 1000) {
@@ -402,10 +808,11 @@ void networkTask(void* arg) {
       if (xSemaphoreTake(bus.mutex, 0) == pdTRUE) {
         local = bus.published;
         xSemaphoreGive(bus.mutex);
+        const int smoothedRssi = static_cast<int>(lroundf(wifiRssiFiltered));
         Serial.printf("ip=%s state=%s boot=%s ",
                       (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString().c_str() : "disabled",
                       wifiStateName(state), bus.bootId);
-        Serial.println(statusJson(local.status));
+        Serial.println(statusJson(local.status, smoothedRssi, wifiRssiRaw, wifiReconnects, liveCfg));
       }
     }
 

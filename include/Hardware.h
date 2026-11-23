@@ -16,18 +16,19 @@ class Hardware {
     analogSetPinAttenuation(config::kGasPin, ADC_11db);
     bootAt_ = millis();
   }
-  smartfire::Inputs sample(uint32_t now) {
+  smartfire::Inputs sample(uint32_t now, bool gasCommissioned = config::kGasCommissioned) {
     // 8 readings reduce ADC noise without seconds-long blocking or auto-learning hazards.
     uint32_t sum = 0;
     for (int i = 0; i < 8; ++i) sum += analogRead(config::kGasPin);
     const uint16_t raw = sum / 8;
     const bool railFault = railTimer_.update(raw <= 5 || raw >= 4090, now, 5000);
     return {raw, digitalRead(config::kFlamePin) == (config::kFlameActiveLow ? LOW : HIGH),
-            !warming(now) && config::kGasCommissioned, railFault};
+            !warming(now) && gasCommissioned, railFault};
   }
   bool warming(uint32_t now) const { return smartfire::elapsed(now, bootAt_) < config::kWarmupMs; }
-  void output(const smartfire::AlarmCore& core, smartfire::State state, uint32_t now) {
-    const bool on = config::kHornEnabled && core.hornRequested();
+  void output(const smartfire::AlarmCore& core, smartfire::State state, uint32_t now,
+              bool hornEnabled = config::kHornEnabled) {
+    const bool on = hornEnabled && core.hornRequested();
     digitalWrite(config::kHornPin, on == config::kHornActiveHigh ? HIGH : LOW);
     const bool led = core.hornRequested() || (state == smartfire::State::Normal ?
                      (now % 2000 < 100) : (now % 500 < 250));
