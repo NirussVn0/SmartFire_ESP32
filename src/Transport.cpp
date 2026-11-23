@@ -244,8 +244,8 @@ void networkTask(void* arg) {
   // Initialize WiFi stack & LwIP tcpip_mbox before any socket or netif operations
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
-  // Disable Wi-Fi modem sleep to prevent 100-400ms latency spikes & HTTP polling drops
-  WiFi.setSleep(false);
+  // Keep MIN_MODEM sleep required by ESP32 Wi-Fi + BLE coexistence (WiFi.setSleep(false) aborts coex_core_enable)
+  WiFi.setSleep(WIFI_PS_MIN_MODEM);
   WiFi.setTxPower(WIFI_POWER_19_5dBm);
 
   // Derive unique device suffix from MAC address for SoftAP & BLE
@@ -674,7 +674,7 @@ void networkTask(void* arg) {
         if (!activeSsid.isEmpty()) {
           Serial.printf("[WIFI] Found configured SSID: '%s'. Attempting connection...\n", activeSsid.c_str());
           WiFi.mode(WIFI_STA);
-          WiFi.setSleep(false);
+          WiFi.setSleep(WIFI_PS_MIN_MODEM);
           WiFi.setTxPower(WIFI_POWER_19_5dBm);
           WiFi.setAutoReconnect(true);
           WiFi.begin(activeSsid.c_str(), activePass.c_str());
@@ -695,7 +695,7 @@ void networkTask(void* arg) {
           WiFi.disconnect(true);
           vTaskDelay(pdMS_TO_TICKS(100));
           WiFi.mode(apActive ? WIFI_AP_STA : WIFI_STA);
-          WiFi.setSleep(false);
+          WiFi.setSleep(WIFI_PS_MIN_MODEM);
           WiFi.setTxPower(WIFI_POWER_19_5dBm);
           WiFi.begin(activeSsid.c_str(), activePass.c_str());
           lastStaAttempt = now;
@@ -703,7 +703,7 @@ void networkTask(void* arg) {
         }
 
         if (WiFi.status() == WL_CONNECTED) {
-          WiFi.setSleep(false);
+          WiFi.setSleep(WIFI_PS_MIN_MODEM);
           String ipStr = WiFi.localIP().toString();
           Serial.printf("[WIFI] Connected successfully! IP: %s RSSI: %d dBm\n", ipStr.c_str(), WiFi.RSSI());
           // Save verified working credentials to NVS
