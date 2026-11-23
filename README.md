@@ -1,96 +1,103 @@
-# SmartFire ESP32 — firmware v1.0.1
-### Hệ thống Cảm biến Cảnh báo Cháy sớm & Điều khiển Còi Báo động
-**Phiên bản:** `v1.0.1` (Cập nhật: 11/2026)  
-**Nền tảng vi điều khiển:** ESP32-WROOM-32 (Classic 30 chân), C++17, FreeRTOS Dual-Core  
-**Ứng dụng quản trị tương thích:** SmartFire AI Android Native (`v1.0.1`)
+# SmartFire ESP32 — Firmware Cảnh Báo Cháy 2 Mức & OTA Wi-Fi (`v2.2.0-2level-sensors`)
+
+> **Sản phẩm STEM Nhóm 2 · Lớp 12D3 · SOV Labs**  
+> **Vi điều khiển:** ESP32-WROOM-32 (Dual-Core FreeRTOS, C++17, PlatformIO / Arduino)  
+> **Ứng dụng điều khiển tương thích:** [`SmartFire AI`](https://github.com/NirussVn0/Smartfire-AI) (Android Native)  
+> **Giấy phép:** [MIT License](LICENSE)
 
 ---
 
-## 1. NGUYÊN TẮC THIẾT KẾ CỐT LÕI
+## 1. Nguyên Tắc Thiết Kế Cốt Lõi
 
 > **"Embedded firmware runs directly on the ESP32 and keeps working without an app or Wi-Fi network."**
 
-Firmware nhúng được biên dịch và nạp trực tiếp vào bộ nhớ Flash của vi điều khiển ESP32, tự khởi chạy độc lập khi cấp điện. Máy tính chỉ cần thiết khi nạp chương trình (flash) hoặc gỡ lỗi (debug Serial). Trong trường hợp mất kết nối Wi-Fi, hỏng router hoặc điện thoại hết pin, **ESP32 vẫn hoàn toàn tự chủ quyết định kích hoạt còi báo động 12V tại chỗ** khi phát hiện khói gas hoặc lửa.
-
-Bộ dự án này được thiết kế chuyên biệt cho **Mô hình nghiên cứu STEM / KHKT THPT** của Nhóm 2, Lớp 12D3.
+- **Độc lập phần cứng:** Toàn bộ logic phát hiện cháy (`AlarmCore`), lọc mẫu và điều khiển còi 12V / LED chạy trên vòng lặp sensing riêng (`loop()`), hoàn toàn không bị block bởi Wi-Fi hay HTTP. Ngay cả khi mất Wi-Fi hoặc tắt điện thoại, **ESP32 vẫn tự chủ hú còi khi có cháy**.
+- **Hỗ trợ Wi-Fi + BLE song song ổn định:** Sử dụng `WiFi.setSleep(WIFI_PS_MIN_MODEM)` tương thích chuẩn Wi-Fi/BLE coexistence trên ESP-IDF (tránh lỗi `coex_core_enable`), công suất phát tối đa `WIFI_POWER_19_5dBm`, lọc mượt `wifi_rssi` bằng EMA + spike clamp và đếm `wifi_reconnects`.
 
 ---
 
-## 2. CÓ GÌ TRONG PHIÊN BẢN v1.0.1?
+## 2. Tính Năng Chính Trong `v2.2.0-2level-sensors`
 
-| Chức năng | Trạng thái v1.0.1 | Chi tiết kỹ thuật |
+| Thành phần | Chi tiết kỹ thuật |
+|---|---|
+| **MQ-2 (Khí cháy / Khói)** | ADC1 `GPIO34`, lấy mẫu trung bình 8 lần mỗi `50ms`, phát hiện lỗi rail `<=5` hoặc `>=4090` |
+| **Flame Sensor (Lửa IR)** | Digital `GPIO27` (`active-low` mặc định), xác nhận độc lập theo 2 mức thời gian (`flame_warn_ms` / `flame_alarm_ms`) |
+| **Nhiệt độ (Tùy chọn mở rộng)** | Hỗ trợ ngưỡng 2 mức `temp_warn_c` / `temp_alarm_c` và cờ `temp_enabled` trong `AlarmCore` (mặc định trả `temperature_celsius: null` nếu chưa gắn module nhiệt) |
+| **Phân cấp 2 mức & Bật/Bỏ qua từng cảm biến** | **Mức 1 (`SUSPECTED`)** cảnh báo sớm và **Mức 2 (`ALARM`)** báo cháy khẩn cấp; hỗ trợ bật/tắt bỏ qua riêng từng cảm biến (`mq2_enabled`, `temp_enabled`, `flame_enabled`) |
+| **Còi 12V & Nút nhấn vật lý** | Còi `GPIO26` qua MOSFET D4184 (khóa an toàn mặc định `kHornEnabled = false`, bật từ App); nút `GPIO18` nhấn ngắn = Silence 30s, giữ 2s = Test còi 1s |
+| **Cấu hình từ xa qua Wi-Fi (`/v1/config`)** | `GET/POST /v1/config` nhận JSON từ App Android và lưu bền vững vào Flash NVS (namespace `sf_cfg`) |
+| **Nạp Code Không Dây Wi-Fi OTA (`/v1/ota`)** | `POST /v1/ota` nhận file `firmware.bin` qua HTTP multipart (xác thực Bearer Token), flash bằng `Update.h` và tự reboot — không cần rút cắm USB hay bấm nút `BOOT` sau lần nạp đầu |
+| **BLE Provisioning & SoftAP Portal** | BLE GATT `4fafc201-1fb5-459e-8fcc-c5c9c331914b` + Captive Portal `SmartFire-Setup-XXXX` (`192.168.4.1`) lưu Wi-Fi vào NVS |
+
+---
+
+## 3. Sơ Đồ Chân Mặc Định (`include/Config.h`)
+
+| Chân ESP32 | Chức năng | Ghi chú |
 |---|---|---|
-| **Đọc cảm biến khí MQ-2** | Đã hoàn thiện | ADC1 GPIO34, lấy mẫu trung bình 8 lần (50ms/mẫu), lọc nhiễu |
-| **Đọc cảm biến lửa Flame Sensor** | Đã hoàn thiện | Digital Output (DO) GPIO27, xác nhận tín hiệu liên tục 500ms |
-| **Máy trạng thái cảnh báo (AlarmCore)** | Đã hoàn thiện | C++ thuần, Hysteresis chống rung, ưu tiên ALARM cao nhất, tự phục hồi an toàn |
-| **Điều khiển còi hú 12V qua MOSFET** | Đã hoàn thiện | GPIO26 qua D4184; tích hợp Bench Interlock (`kHornEnabled`) chống ồn khi thử bàn |
-| **Nút nhấn vật lý đa năng** | Đã hoàn thiện | GPIO18: Nhấn nhanh = Tạm tắt còi (Silence 30s), Nhấn giữ 2s = Thử còi (Test 1s) |
-| **Cấu hình Wi-Fi qua BLE (Provisioning)** | **MỚI (v1.0.1)** | BLE GATT Service `4fafc201-1fb5-459e-8fcc-c5c9c331914b`, ghi SSID/Pass JSON, notify IP |
-| **Trang cấu hình khẩn cấp (SoftAP Portal)** | **MỚI (v1.0.1)** | Khi mất Wi-Fi, tự phát mạng `SmartFire-Setup-XXXX`, Web portal tại `192.168.4.1` để cài Wi-Fi |
-| **Lưu cấu hình Wi-Fi vào Flash NVS** | **MỚI (v1.0.1)** | Sử dụng thư viện `Preferences` (namespace `"smartfire"`), giữ cấu hình khi cúp điện |
-| **Giao tiếp HTTP REST qua LAN** | Đã hoàn thiện | Port 80, xác thực bắt buộc `Authorization: Bearer <TOKEN>` $\ge$ 24 ký tự |
-| **Đồng bộ sự kiện lịch sử** | Đã hoàn thiện | Bộ đệm xoay RAM 32 sự kiện, đánh dấu `historyGap` khi quá tải |
-| **Định danh node phân tán** | Đã hoàn thiện | `device_id`, `room_id`, `boot_id` ngẫu nhiên sau mỗi lần khởi động, số thứ tự `seq` |
-| **Ứng dụng điều khiển Android** | **ĐÃ HOÀN THIỆN** | **SmartFire AI v1.0.1 Native** (Bản đồ 2D, Dijkstra tìm lối thoát, AI Gemini, Local SQLite) |
-
-> **Lưu ý an toàn về cảm biến:** Giá trị MQ-2 trả về là số đếm ADC thô `[0..4095]`, không tự quy đổi sang ppm khi chưa có buồng khí chuẩn. Firmware không sinh nhiệt độ ảo (`"temperature_celsius": null`).
+| `GPIO34` | Cảm biến khí/khói MQ-2 (Analog) | Qua mạch chia áp an toàn về ≤ 3.3V |
+| `GPIO27` | Cảm biến ngọn lửa Flame (DO) | `INPUT_PULLUP`, mặc định `kFlameActiveLow = true` |
+| `GPIO26` | Điều khiển MOSFET D4184 (Còi 12V) | `kHornActiveHigh = true`, mặc định khóa `kHornEnabled = false` |
+| `GPIO18` | Nút nhấn vật lý Silence / Test | `INPUT_PULLUP` (nhấn ngắn = Silence, giữ ≥ 2s = Test) |
+| `GPIO25` | LED trạng thái hệ thống | Nháy nhịp bình thường / sáng liên tục khi báo động |
 
 ---
 
-## 3. TÀI LIỆU CHI TIẾT THEO THỨ TỰ ĐỌC
+## 4. API HTTP LAN (`Port 80`, Bearer Token ≥ 24 ký tự)
 
-1. [Sơ đồ đấu dây & Kiểm tra điện áp](docs/01_WIRING_VI.md) — Chi tiết chân nối LM2596, ESP32, MQ-2, Flame và MOSFET D4184.
-2. [Cài đặt công cụ, Biên dịch, Nạp Flash & Thử bàn](docs/02_FLASH_AND_COMMISSION_VI.md) — Hướng dẫn cài VS Code, PlatformIO và cấu hình ban đầu.
-3. [Kiến trúc phân tầng & Vòng lặp điều khiển](docs/03_ARCHITECTURE_VI.md) — Phân tách trách nhiệm AlarmCore, Hardware và Transport Dual-Core.
-4. [Đặc tả API HTTP LAN v1](docs/04_API_VI.md) — Cấu trúc JSON endpoints `/v1/status`, `/v1/events`, `/v1/commands/*`.
-5. [Quy trình kiểm thử & Trạng thái nghiệm thu](docs/05_VERIFICATION_VI.md) — Kịch bản thử nghiệm còi, lửa, mất kết nối và chẩn đoán lỗi.
-6. [Kiến trúc Cấu hình BLE & Đồng bộ](docs/06_BLE_PROVISIONING_SYNC_VI.md) — Chi tiết UUID, cấu trúc gói tin GATT và mã mẫu tích hợp Android.
+Mọi endpoint `/v1/*` yêu cầu header `Authorization: Bearer <kApiToken>`:
 
----
-
-## 4. CÁCH CẤU HÌNH THIẾT BỊ (3 PHƯƠNG THỨC)
-
-Trong phiên bản **v1.0.1**, người dùng không cần sửa lại code để đổi Wi-Fi:
-
-### Phương thức 1: Cấu hình qua Ứng dụng SmartFire AI (Khuyên dùng)
-1. Cấp nguồn cho ESP32.
-2. Mở ứng dụng Android **SmartFire AI** $\rightarrow$ Tab **Cảm biến** $\rightarrow$ Bấm **'+'** $\rightarrow$ Chọn **Quét BLE**.
-3. Chọn thiết bị có tên dạng `SmartFire-Node-01` $\rightarrow$ Nhập tên Wi-Fi và Mật khẩu.
-4. ESP32 nhận thông tin qua BLE, lưu vào NVS Flash, kết nối router và thông báo địa chỉ IP về app qua BLE Notification.
-
-### Phương thức 2: Cấu hình qua Trình duyệt Web (SoftAP Captive Portal)
-1. Khi ESP32 chưa có Wi-Fi hoặc không kết nối được router sau 15 giây, thiết bị tự phát Wi-Fi tên: **`SmartFire-Setup-XXXX`** (không mật khẩu).
-2. Dùng điện thoại hoặc laptop kết nối vào Wi-Fi này $\rightarrow$ Mở trình duyệt truy cập: **`http://192.168.4.1/`**.
-3. Nhập SSID và Password trên giao diện Web $\rightarrow$ Nhấn **"Lưu & Kết Nối"**.
-
-### Phương thức 3: Cấu hình cứng qua mã nguồn (Dành cho Developer)
-- Copy `include/Secrets.example.h` thành `include/Secrets.h`.
-- Khai báo SSID, Mật khẩu, Token tĩnh, Device ID và Room ID.
-- Nạp lại firmware bằng PlatformIO.
+- `GET /v1/status` — Trả về trạng thái realtime, `wifi_rssi`, `wifi_rssi_raw`, `wifi_reconnects`, cấu hình 2 mức và phiên bản firmware (`firmware_version`).
+- `GET /v1/events?since=<seq>` — Lấy lịch sử tối đa 32 sự kiện gần nhất từ vòng đệm RAM.
+- `GET /v1/config` — Đọc cấu hình 2 mức & bật/tắt cảm biến đang lưu trong NVS (`sf_cfg`).
+- `POST /v1/config` — Cập nhật cấu hình qua Wi-Fi và lưu vào NVS (`mq2_enabled`, `gas_off`, `gas_warn`, `gas_on`, `temp_enabled`, `temp_warn_c`, `temp_alarm_c`, `flame_enabled`, `flame_warn_ms`, `flame_alarm_ms`, `horn_enabled`, `gas_commissioned`, `tx_power_1m`, `path_loss_n`).
+- `POST /v1/ota` — Nạp file `firmware.bin` mới qua Wi-Fi (multipart field `firmware`).
+- `POST /v1/commands/ack` · `/v1/commands/silence` · `/v1/commands/test` — Gửi lệnh điều khiển bất đồng bộ tới `AlarmCore`.
 
 ---
 
-## 5. BẮT ĐẦU NHANH VỚI PLATFORMIO
+## 5. Cài Đặt, Biên Dịch & Nạp Firmware
 
-```sh
-# 1. Di chuyển vào thư mục firmware
+### Bước 1: Tạo file bí mật `include/Secrets.h`
+Copy `include/Secrets.example.h` thành `include/Secrets.h` (file `Secrets.h` đã được `.gitignore`, không đẩy lên GitHub) và điền `kDeviceId`, `kRoomId`, `kApiToken` (≥ 24 ký tự).
+
+### Bước 2: Biên dịch & Nạp qua USB (lần đầu tiên)
+```powershell
 cd SmartFire_ESP32
 
-# 2. Biên dịch firmware
+# Biên dịch tạo .pio/build/esp32dev/firmware.bin
 pio run -e esp32dev
 
-# 3. Nạp firmware vào ESP32 qua cổng USB (giữ nút BOOT nếu mạch không tự reset)
+# Nạp qua USB (nếu board không tự vào download mode, nối IO0-GND hoặc giữ BOOT khi reset)
 pio run -e esp32dev -t upload
 
-# 4. Mở Serial Monitor để theo dõi log
+# Xem Serial Monitor 115200 baud
 pio device monitor -b 115200
+```
+
+### Bước 3: Nạp OTA qua Wi-Fi (từ các lần sau — không cần USB / nút BOOT)
+- **Từ App Android SmartFire AI:** Vào **Cài đặt → Cập Nhật Code ESP32 Qua Wi-Fi (OTA `.bin`) → Chọn file `.bin` → PUSH OTA**.
+- **Hoặc từ máy tính (PowerShell):**
+```powershell
+curl.exe -X POST "http://<IP_ESP32>/v1/ota" `
+  -H "Authorization: Bearer <API_TOKEN>" `
+  -F "firmware=@.pio\build\esp32dev\firmware.bin"
 ```
 
 ---
 
-## 6. GIỚI HẠN PHẦN CỨNG & AN TOÀN
+## 6. Tài Liệu Kỹ Thuật Chi Tiết
 
-Đây là mô hình nghiên cứu khoa học kỹ thuật dành cho học sinh THPT, chưa qua kiểm định PCCC công nghiệp. Khi thử nghiệm:
-- Luôn thử nghiệm với các tín hiệu an toàn (nút nhấn Test, ngắt kết nối dây mô phỏng, bật lửa gas ở cự ly an toàn).
-- Tuyệt đối không để lửa thật không người trông coi hoặc tạo khói độc trong phòng kín.
-- Mặc định cờ `kHornEnabled = false` trong `Config.h` để tránh còi hú bất ngờ trong quá trình phát triển trên bàn học.
+1. [Sơ đồ đấu dây & Kiểm tra điện áp](docs/01_WIRING_VI.md)
+2. [Cài đặt công cụ, Biên dịch & Nạp Flash](docs/02_FLASH_AND_COMMISSION_VI.md)
+3. [Kiến trúc phân tầng & Vòng lặp điều khiển](docs/03_ARCHITECTURE_VI.md)
+4. [Đặc tả API HTTP LAN v1](docs/04_API_VI.md)
+5. [Quy trình kiểm thử & Nghiệm thu](docs/05_VERIFICATION_VI.md)
+6. [Kiến trúc BLE Provisioning & Đồng bộ](docs/06_BLE_PROVISIONING_SYNC_VI.md)
+
+---
+
+## 7. An Toàn Thử Nghiệm & Giấy Phép
+
+- Đây là mô hình nghiên cứu STEM / KHKT THPT, chưa qua kiểm định PCCC công nghiệp; không để lửa thật không người trông coi hoặc tạo khói độc trong phòng kín.
+- Phát hành theo giấy phép **MIT License** — xem chi tiết tại file [`LICENSE`](LICENSE).
