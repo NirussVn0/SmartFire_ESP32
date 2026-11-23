@@ -40,9 +40,9 @@ struct Inputs {
   float temp_c = 0.0f;
   bool temp_ready = false;
 };
-enum class Command { Ack, Silence, Test };
+enum class Command { Ack, Silence, Test, Disarm, Arm, ToggleDisarm };
 enum class Result { Applied, Rejected };
-enum class State { Warming, Unconfigured, Normal, Suspected, Alarm, Fault };
+enum class State { Warming, Unconfigured, Normal, Suspected, Alarm, Fault, Disarmed };
 inline const char* stateName(State s) {
   switch (s) {
     case State::Warming: return "WARMING";
@@ -51,6 +51,7 @@ inline const char* stateName(State s) {
     case State::Suspected: return "SUSPECTED";
     case State::Alarm: return "ALARM";
     case State::Fault: return "FAULT";
+    case State::Disarmed: return "DISARMED";
   }
   return "FAULT";
 }
@@ -67,51 +68,86 @@ class AlarmCore {
   const Policy& policy() const { return policy_; }
   void update(const Inputs& in, uint32_t now) {
     in_ = in;
+    if (disarmed_) {
+      alarm_ = false;
+      muted_ = false;
+      testing_ = false;
+      flameWarnActive_ = false;
+      return;
+    }
     const bool effFlame = policy_.flame_enabled && in.flame;
-    const bool effGasReady = policy_.mq2_enabled && in.gas_ready;
-    const bool effGasFault = policy_.mq2_enabled && in.gas_fault;
+    const bool effGasValid = policy_.mq2_enabled && in.gas_ready && !in.gas_fault && in.gas_raw < 4090;
     const bool effTempReady = policy_.temp_enabled && in.temp_ready;
 
     // Level 1 warning timer for flame
     flameWarnActive_ = flameWarnTimer_.update(effFlame, now, policy_.flame_warn_ms);
 
-    // Level 2 alarm timers (independent per-sensor)
+    // Level 2 alarm timers (independent per-sensor; rail fault 4095 must report Fault, never false Alarm)
     const bool flame_confirmed = flameTimer_.update(effFlame, now, policy_.flame_hold_ms);
-    // A high rail still counts as gas evidence, even when also marked faulty.
-    const bool gas_confirmed = gasTimer_.update(effGasReady && in.gas_raw >= policy_.gas_on,
+    const bool gas_confirmed = gasTimer_.update(effGasValid && in.gas_raw >= policy_.gas_on,
                                                 now, policy_.gas_hold_ms);
     const bool temp_confirmed = tempTimer_.update(effTempReady && in.temp_c >= policy_.temp_alarm_c,
                                                   now, policy_.temp_hold_ms);
     if (flame_confirmed || gas_confirmed || temp_confirmed) {
       if (!alarm_) { alarm_ = true; acknowledged_ = false; muteUsed_ = false; }
     }
-    // Raw flame immediately cancels mute; confirmation still governs alarm entry.
-    if (effFlame || effGasFault) muted_ = false;
     if (muted_ && elapsed(now, mutedAt_) >= policy_.mute_ms) muted_ = false;
     if (testing_ && elapsed(now, testAt_) >= policy_.test_ms) testing_ = false;
-    const bool clear = !effFlame && !effGasFault &&
-                       (!effGasReady || in.gas_raw <= policy_.gas_off) &&
+    const bool clear = !effFlame &&
+                       (!effGasValid || in.gas_raw <= policy_.gas_off) &&
                        (!effTempReady || in.temp_c <= policy_.temp_warn_c);
     if (clearTimer_.update(alarm_ && clear, now, policy_.clear_hold_ms)) {
       alarm_ = false; muted_ = false; acknowledged_ = false; muteUsed_ = false;
     }
   }
   Result command(Command cmd, uint32_t now) {
-    if (cmd == Command::Ack && alarm_) { acknowledged_ = true; return Result::Applied; }
-    if (cmd == Command::Silence && alarm_ && !(policy_.flame_enabled && in_.flame) &&
-        !(policy_.mq2_enabled && in_.gas_fault) && !muteUsed_) {
-      muted_ = true; muteUsed_ = true; mutedAt_ = now; return Result::Applied;
+    if (cmd == Command::Disarm) {
+      disarmed_ = true;
+      alarm_ = false;
+      muted_ = false;
+      testing_ = false;
+      acknowledged_ = false;
+      flameWarnActive_ = false;
+      return Result::Applied;
     }
-    if (cmd == Command::Test && !alarm_ && !testing_) {
+    if (cmd == Command::Arm) {
+      disarmed_ = false;
+      return Result::Applied;
+    }
+    if (cmd == Command::ToggleDisarm) {
+      if (disarmed_) {
+        disarmed_ = false;
+      } else {
+        disarmed_ = true;
+        alarm_ = false;
+        muted_ = false;
+        testing_ = false;
+        acknowledged_ = false;
+        flameWarnActive_ = false;
+      }
+      return Result::Applied;
+    }
+    if (cmd == Command::Ack && alarm_) { acknowledged_ = true; return Result::Applied; }
+    if (cmd == Command::Silence && (alarm_ || testing_)) {
+      testing_ = false;
+      if (alarm_) {
+        muted_ = true;
+        muteUsed_ = true;
+        mutedAt_ = now;
+      }
+      return Result::Applied;
+    }
+    if (cmd == Command::Test && !disarmed_ && !alarm_ && !testing_) {
       testing_ = true; testAt_ = now; return Result::Applied;
     }
     return Result::Rejected;
   }
   State state(bool warming, bool commissioned) const {
+    if (disarmed_) return State::Disarmed;
     if (alarm_) return State::Alarm;
     if (policy_.mq2_enabled && in_.gas_fault) return State::Fault;
     if (flameWarnActive_ ||
-        (policy_.mq2_enabled && in_.gas_ready && in_.gas_raw >= policy_.gas_warn) ||
+        (policy_.mq2_enabled && in_.gas_ready && !in_.gas_fault && in_.gas_raw < 4090 && in_.gas_raw >= policy_.gas_warn) ||
         (policy_.temp_enabled && in_.temp_ready && in_.temp_c >= policy_.temp_warn_c)) {
       return State::Suspected;
     }
@@ -119,8 +155,9 @@ class AlarmCore {
     if (!commissioned) return State::Unconfigured;
     return State::Normal;
   }
+  bool disarmed() const { return disarmed_; }
   bool alarm() const { return alarm_; }
-  bool hornRequested() const { return (alarm_ && !muted_) || testing_; }
+  bool hornRequested() const { return !disarmed_ && ((alarm_ && !muted_) || testing_); }
   bool muted() const { return muted_; }
   bool acknowledged() const { return acknowledged_; }
   bool testing() const { return testing_; }
@@ -128,7 +165,7 @@ class AlarmCore {
   Policy policy_;
   Inputs in_;
   HeldFor flameWarnTimer_, flameTimer_, gasTimer_, tempTimer_, clearTimer_;
-  bool flameWarnActive_ = false;
+  bool flameWarnActive_ = false, disarmed_ = false;
   bool alarm_ = false, muted_ = false, muteUsed_ = false;
   bool acknowledged_ = false, testing_ = false;
   uint32_t mutedAt_ = 0, testAt_ = 0;

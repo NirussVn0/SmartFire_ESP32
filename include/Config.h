@@ -26,7 +26,7 @@ constexpr uint32_t kFlameAlarmMs = 500; // Level 2 Flame confirm (ms)
 constexpr uint32_t kWarmupMs = 180000; // Boot inhibit only; NOT initial MQ-2 conditioning.
 constexpr uint32_t kSampleMs = 50;
 constexpr uint32_t kPublishMs = 200;
-constexpr char kFirmwareVersion[] = "2.2.0-2level-sensors";
+constexpr char kFirmwareVersion[] = "2.2.2-disarm-5s";
 constexpr int8_t kDefaultTxPower1m = -45;
 constexpr float kDefaultPathLossN = 2.4f;
 static_assert(kGasOff < kGasWarn && kGasWarn < kGasOn && kGasOn < 4090, "Invalid gas hysteresis thresholds");

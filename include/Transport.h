@@ -34,7 +34,7 @@ struct Snapshot {
   uint16_t gasRaw = 0;
   smartfire::State state = smartfire::State::Warming;
   bool flame = false, gasReady = false, gasFault = false;
-  bool alarm = false, muted = false, acknowledged = false, testing = false;
+  bool alarm = false, muted = false, acknowledged = false, testing = false, disarmed = false;
   bool hornRequested = false;
   bool hornEnabled = config::kHornEnabled;
   bool gasCommissioned = config::kGasCommissioned;

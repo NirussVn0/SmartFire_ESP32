@@ -172,6 +172,7 @@ String statusJson(const Snapshot& s, int wifiRssiSmoothed, int wifiRssiRaw,
   out += ",\"muted\":" + String(boolean(s.muted));
   out += ",\"acknowledged\":" + String(boolean(s.acknowledged));
   out += ",\"testing\":" + String(boolean(s.testing));
+  out += ",\"disarmed\":" + String(boolean(s.disarmed));
   out += ",\"horn_requested\":" + String(boolean(s.hornRequested));
   out += ",\"horn_enabled\":" + String(boolean(s.hornEnabled));
   out += ",\"gas_commissioned\":" + String(boolean(s.gasCommissioned));
@@ -596,6 +597,8 @@ void networkTask(void* arg) {
   server.on("/v1/commands/ack", HTTP_POST, [&]() { enqueue(smartfire::Command::Ack); });
   server.on("/v1/commands/silence", HTTP_POST, [&]() { enqueue(smartfire::Command::Silence); });
   server.on("/v1/commands/test", HTTP_POST, [&]() { enqueue(smartfire::Command::Test); });
+  server.on("/v1/commands/disarm", HTTP_POST, [&]() { enqueue(smartfire::Command::Disarm); });
+  server.on("/v1/commands/arm", HTTP_POST, [&]() { enqueue(smartfire::Command::Arm); });
 
   // Web Portal Endpoints for Setup / Recovery
   server.on("/", HTTP_GET, [&]() {

@@ -28,28 +28,37 @@ class Hardware {
   bool warming(uint32_t now) const { return smartfire::elapsed(now, bootAt_) < config::kWarmupMs; }
   void output(const smartfire::AlarmCore& core, smartfire::State state, uint32_t now,
               bool hornEnabled = config::kHornEnabled) {
-    const bool on = hornEnabled && core.hornRequested();
+    const bool on = (state != smartfire::State::Disarmed) && hornEnabled && core.hornRequested();
     digitalWrite(config::kHornPin, on == config::kHornActiveHigh ? HIGH : LOW);
-    const bool led = core.hornRequested() || (state == smartfire::State::Normal ?
+    const bool led = (state == smartfire::State::Disarmed) ? (now % 4000 < 80) :
+                     core.hornRequested() || (state == smartfire::State::Normal ?
                      (now % 2000 < 100) : (now % 500 < 250));
     digitalWrite(config::kLedPin, led ? HIGH : LOW);
   }
-  // Debounced short release -> Silence. Hold >=2s -> a one-second output Test.
+  // Short release (<2s) -> 30s Silence. Release 2..4.9s -> 1s Test. Hold >=5s -> Toggle Disarm/Arm.
   bool button(uint32_t now, smartfire::Command& out) {
     const bool raw = digitalRead(config::kButtonPin) == LOW;
     if (raw != lastRaw_) { lastRaw_ = raw; changedAt_ = now; }
     if (smartfire::elapsed(now, changedAt_) >= 40 && stable_ != raw) {
       stable_ = raw;
-      if (stable_) { pressedAt_ = now; longSent_ = false; }
-      else if (!longSent_) { out = smartfire::Command::Silence; return true; }
+      if (stable_) {
+        pressedAt_ = now;
+        hold5sSent_ = false;
+      } else if (!hold5sSent_) {
+        const uint32_t heldMs = smartfire::elapsed(now, pressedAt_);
+        out = (heldMs >= 2000) ? smartfire::Command::Test : smartfire::Command::Silence;
+        return true;
+      }
     }
-    if (stable_ && !longSent_ && smartfire::elapsed(now, pressedAt_) >= 2000) {
-      longSent_ = true; out = smartfire::Command::Test; return true;
+    if (stable_ && !hold5sSent_ && smartfire::elapsed(now, pressedAt_) >= 5000) {
+      hold5sSent_ = true;
+      out = smartfire::Command::ToggleDisarm;
+      return true;
     }
     return false;
   }
  private:
   smartfire::HeldFor railTimer_;
   uint32_t bootAt_ = 0, changedAt_ = 0, pressedAt_ = 0;
-  bool lastRaw_ = false, stable_ = false, longSent_ = false;
+  bool lastRaw_ = false, stable_ = false, hold5sSent_ = false;
 };

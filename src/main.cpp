@@ -32,13 +32,13 @@ uint32_t sampledAt = 0, publishedAt = 0;
 Snapshot makeSnapshot(const smartfire::Inputs& in, uint32_t now) {
   return {now, in.gas_raw, core.state(hardware.warming(now), activeCfg.gasCommissioned),
           in.flame, in.gas_ready, in.gas_fault, core.alarm(), core.muted(),
-          core.acknowledged(), core.testing(), core.hornRequested(),
+          core.acknowledged(), core.testing(), core.disarmed(), core.hornRequested(),
           activeCfg.hornEnabled, activeCfg.gasCommissioned, activeCfg.gasOn, activeCfg.gasOff};
 }
 bool changed(const Snapshot& a, const Snapshot& b) {
   return a.state != b.state || a.alarm != b.alarm || a.muted != b.muted ||
          a.acknowledged != b.acknowledged || a.testing != b.testing ||
-         a.gasFault != b.gasFault || a.gasReady != b.gasReady;
+         a.disarmed != b.disarmed || a.gasFault != b.gasFault || a.gasReady != b.gasReady;
 }
 void record(const Snapshot& s, const char* kind, uint32_t id = 0, const char* result = "none") {
   if (pending.count == kEventCapacity) {
@@ -77,7 +77,10 @@ void loop() {
     const bool stale = smartfire::elapsed(commandNow, req.enqueuedAt) > 2000;
     const auto result = stale ? smartfire::Result::Rejected : core.command(req.command, commandNow);
     const char* kind = req.command == smartfire::Command::Ack ? "ack" :
-                       req.command == smartfire::Command::Silence ? "silence" : "test";
+                       req.command == smartfire::Command::Silence ? "silence" :
+                       req.command == smartfire::Command::Disarm ? "disarm" :
+                       req.command == smartfire::Command::Arm ? "arm" :
+                       req.command == smartfire::Command::ToggleDisarm ? "toggle_disarm" : "test";
     record(makeSnapshot(in, now), kind, req.requestId,
            stale ? "expired" : result == smartfire::Result::Applied ? "applied" : "rejected");
   }
